@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,800;0,900;1,800&family=Space+Mono:wght@700&family=Work+Sans:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor-awesomplete.css?v=1.1.5">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-screen="prep">
@@ -67,16 +68,14 @@
         </div>
 
         <form class="prep-form">
-          <div class="trip-line">
+          <section class="stops-panel" aria-labelledby="stops-title">
             <svg class="sunburst" aria-hidden="true"><use href="#icon-sun"></use></svg>
-            <strong>I am going to</strong>
-            <input id="destination" class="text-field city-field" type="text" value="Barcelona, Spain" aria-label="City and country">
-            <strong>on</strong>
-            <input id="trip-date" class="text-field date-field" type="date" value="2026-07-14" aria-label="Trip date">
-            <strong>for</strong>
-            <input id="trip-days" class="text-field days-field" type="number" min="1" max="30" value="4" aria-label="Number of days">
-            <strong>days.</strong>
-          </div>
+            <div class="stops-heading">
+              <h2 id="stops-title">Trip Stops</h2>
+              <p>Add every place where the weather gets a vote.</p>
+            </div>
+            <div id="stops-list" class="stops-list"></div>
+          </section>
 
           <div class="activity-line">
             <strong>I'll be mostly</strong>
@@ -252,6 +251,7 @@
   </footer>
 
   <div id="toast" role="status" aria-live="polite"></div>
+  <script src="vendor-awesomplete.min.js?v=1.1.5"></script>
   <script src="app.js"></script>
 </body>
 </html>
