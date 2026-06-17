@@ -70,29 +70,28 @@
         <form class="prep-form">
           <section class="stops-panel" aria-labelledby="stops-title">
             <svg class="sunburst" aria-hidden="true"><use href="#icon-sun"></use></svg>
-            <div class="stops-heading">
-              <h2 id="stops-title">Trip Stops</h2>
-              <p>Add every place where the weather gets a vote.</p>
-            </div>
+            <h2 id="stops-title" class="visually-hidden">Trip stops</h2>
             <div id="stops-list" class="stops-list"></div>
           </section>
-
-          <div class="activity-line">
-            <strong>I'll be mostly</strong>
-            <label class="pill"><input type="checkbox" checked> fine dining</label>
-            <label class="pill"><input type="checkbox" checked> swimming</label>
-            <label class="pill"><input type="checkbox"> hiking</label>
-            <label class="pill"><input type="checkbox"> business meetings</label>
-          </div>
 
           <div class="divider-add">
             <span></span>
             <button type="button" id="add-stop" class="inline-add">
               <svg><use href="#icon-plus-circle"></use></svg>
-              Add Another Stop
+              Add next stop
             </button>
             <span></span>
           </div>
+
+          <details class="additional-panel">
+            <summary>Additional things</summary>
+            <div class="activity-line">
+              <label class="pill"><input type="checkbox" checked> fine dining</label>
+              <label class="pill"><input type="checkbox" checked> swimming</label>
+              <label class="pill"><input type="checkbox"> hiking</label>
+              <label class="pill"><input type="checkbox"> business meetings</label>
+            </div>
+          </details>
 
           <section class="baggage" aria-labelledby="baggage-title">
             <div class="baggage-heading">

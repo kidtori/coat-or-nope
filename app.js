@@ -62,13 +62,14 @@ function createStopRow(stop = {}) {
   row.dataset.stopId = String(stopId);
 
   row.innerHTML = `
-    <span class="stop-number" aria-label="Stop number"></span>
-    <span class="stop-word going">I am going to</span>
+    <span class="stop-word stop-prefix"></span>
     <span class="location-wrap">
       <input class="text-field city-field location-input" type="text" value="${escapeAttribute(stop.location || "")}" placeholder="City, Country" autocomplete="off" aria-label="City and country">
     </span>
-    <span class="stop-word on">on</span>
-    <input class="text-field date-field" type="date" value="${escapeAttribute(stop.date || "")}" aria-label="Trip date">
+    <span class="stop-date-group">
+      <span class="stop-word on">on</span>
+      <input class="text-field date-field" type="date" value="${escapeAttribute(stop.date || "")}" aria-label="Trip date">
+    </span>
     <span class="stop-word for">for</span>
     <input class="text-field days-field" type="number" min="1" max="30" value="${Number(stop.days || 3)}" aria-label="Number of days">
     <span class="stop-word days">days.</span>
@@ -92,7 +93,11 @@ function renumberStops() {
   const rows = Array.from(document.querySelectorAll(".stop-row"));
 
   rows.forEach((row, index) => {
-    row.querySelector(".stop-number").textContent = String(index + 1);
+    const isFirst = index === 0;
+    row.classList.toggle("is-first", isFirst);
+    row.classList.toggle("is-next", !isFirst);
+    row.querySelector(".stop-prefix").textContent = isFirst ? "I am going to" : "and then to";
+
     const removeButton = row.querySelector(".remove-stop");
     removeButton.disabled = rows.length === 1;
     removeButton.classList.toggle("is-disabled", rows.length === 1);
