@@ -792,10 +792,14 @@ footer small {
   }
 
   .baggage-grid,
-  .weather-grid,
   .packing-grid,
   .button-row {
     grid-template-columns: 1fr;
+  }
+
+  .weather-grid {
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .baggage-grid {
@@ -847,12 +851,33 @@ footer small {
   }
 
   .weather-card {
-    min-height: 106px;
-    padding: 18px 18px;
+    min-height: 104px;
+    padding: 15px 12px;
   }
 
   .weather-card strong {
-    font-size: 29px;
+    font-size: 26px;
+  }
+
+  .weather-card span {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .weather-card b {
+    font-size: 12px;
+    margin-left: 4px;
+  }
+
+  .weather-card p {
+    font-size: 12px;
+    line-height: 1.3;
+    margin-top: 7px;
+  }
+
+  .weather-card svg {
+    height: 58px;
+    width: 58px;
   }
 
   .verdict {
