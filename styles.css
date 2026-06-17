@@ -164,7 +164,7 @@ footer small,
 .narrow-shell {
   margin: 0 auto;
   max-width: var(--content);
-  padding: 42px clamp(20px, 3vw, 30px) 68px;
+  padding: 34px clamp(20px, 3vw, 30px) 60px;
 }
 
 .intro h1 {
@@ -435,21 +435,21 @@ footer small,
 }
 
 .outlook {
-  margin-bottom: 38px;
+  margin-bottom: 28px;
 }
 
 .weather-grid {
   display: grid;
-  gap: 24px;
+  gap: 20px;
   grid-template-columns: repeat(2, 1fr);
 }
 
 .weather-card {
   border: 2px solid var(--ink);
   border-radius: 10px;
-  min-height: 154px;
+  min-height: 122px;
   overflow: hidden;
-  padding: 30px 28px;
+  padding: 22px 24px;
   position: relative;
 }
 
@@ -463,14 +463,14 @@ footer small,
 
 .weather-card span {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   text-transform: uppercase;
 }
 
 .weather-card strong {
   display: inline-block;
   font-family: "Montserrat", Arial, sans-serif;
-  font-size: 38px;
+  font-size: 31px;
   font-weight: 900;
   letter-spacing: -0.08em;
   line-height: 1;
@@ -482,62 +482,62 @@ footer small,
 }
 
 .weather-card b {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 400;
   margin-left: 9px;
 }
 
 .weather-card p {
   font-family: "Work Sans", Arial, sans-serif;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
-  margin: 14px 0 0;
+  margin: 9px 0 0;
 }
 
 .weather-card svg {
-  bottom: -24px;
+  bottom: -20px;
   color: rgba(13, 29, 42, 0.12);
-  height: 86px;
+  height: 72px;
   position: absolute;
   right: -16px;
-  width: 86px;
+  width: 72px;
 }
 
 .verdict {
   background: var(--yellow);
   border: 3px solid var(--ink);
-  border-radius: 14px;
-  box-shadow: 9px 9px 0 var(--ink);
-  margin-bottom: 42px;
-  padding: 38px 48px;
+  border-radius: 12px;
+  box-shadow: 6px 6px 0 var(--ink);
+  margin-bottom: 34px;
+  padding: 28px 40px;
   text-align: center;
 }
 
 .verdict p {
   color: var(--olive);
-  margin: 0 0 10px;
+  margin: 0 0 7px;
 }
 
 .verdict h1 {
   color: var(--olive);
   font-family: "Montserrat", Arial, sans-serif;
-  font-size: clamp(27px, 3vw, 38px);
+  font-size: clamp(23px, 2.35vw, 31px);
   font-weight: 900;
   letter-spacing: -0.06em;
   line-height: 1.05;
-  margin: 0 0 22px;
+  margin: 0 0 14px;
 }
 
 .verdict span {
   color: #5a4b00;
   display: block;
-  font-size: 16px;
+  font-size: 14px;
   letter-spacing: 0.04em;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .packing {
-  margin-bottom: 40px;
+  margin-bottom: 34px;
 }
 
 .packing-grid {
@@ -875,24 +875,26 @@ footer small {
   }
 
   .weather-card {
-    min-height: 126px;
-    padding: 22px 20px;
+    min-height: 106px;
+    padding: 18px 18px;
   }
 
   .weather-card strong {
-    font-size: 36px;
+    font-size: 29px;
   }
 
   .verdict {
-    padding: 28px 18px;
+    padding: 22px 18px;
+    margin-bottom: 28px;
   }
 
   .verdict h1 {
-    font-size: 24px;
+    font-size: 21px;
+    margin-bottom: 10px;
   }
 
   .verdict span {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .packing-grid {
