@@ -4,8 +4,25 @@ const bagOptions = Array.from(document.querySelectorAll(".bag-option"));
 const prepForm = document.querySelector(".prep-form");
 const addStopButton = document.querySelector("#add-stop");
 const toast = document.querySelector("#toast");
+let verdictReady = false;
+
+function setVerdictReady(isReady) {
+  verdictReady = isReady;
+
+  navLinks
+    .filter((link) => link.dataset.target === "results")
+    .forEach((link) => {
+      link.classList.toggle("is-disabled", !isReady);
+      link.setAttribute("aria-disabled", String(!isReady));
+    });
+}
 
 function showScreen(targetId) {
+  if (targetId === "results" && !verdictReady) {
+    showToast("Get your verdict first. We need something to judge.");
+    return;
+  }
+
   document.body.dataset.screen = targetId;
 
   screens.forEach((screen) => {
@@ -39,6 +56,7 @@ navLinks.forEach((link) => {
 
 prepForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  setVerdictReady(true);
   showScreen("results");
 });
 
@@ -66,8 +84,4 @@ document.querySelectorAll(".secondary-button").forEach((button) => {
   });
 });
 
-document.querySelectorAll(".icon-button").forEach((button) => {
-  button.addEventListener("click", () => {
-    showToast(button.getAttribute("aria-label") === "Share" ? "Share link copied." : "Download queued.");
-  });
-});
+setVerdictReady(false);

@@ -53,17 +53,9 @@
   <header class="topbar">
     <a class="brand" href="#" data-target="prep">Coat or Nope</a>
     <nav class="topnav" aria-label="Main">
-      <a class="nav-link is-active" href="#" data-target="prep">Prep</a>
-      <a class="nav-link" href="#" data-target="results">Results</a>
+      <a class="nav-link is-active" href="#" data-target="prep">Trip Details</a>
+      <a class="nav-link is-disabled" href="#" data-target="results" aria-disabled="true">Verdict</a>
     </nav>
-    <div class="top-actions" aria-label="Utilities">
-      <button class="icon-button" type="button" aria-label="Share">
-        <svg><use href="#icon-share"></use></svg>
-      </button>
-      <button class="icon-button" type="button" aria-label="Download">
-        <svg><use href="#icon-download"></use></svg>
-      </button>
-    </div>
   </header>
 
   <main>
@@ -245,9 +237,8 @@
   </main>
 
   <nav class="bottom-nav" aria-label="Mobile">
-    <a class="bottom-link is-active" href="#" data-target="prep">Prep</a>
-    <a class="bottom-link" href="#" data-target="results">Results</a>
-    <a class="bottom-link" href="#">Share</a>
+    <a class="bottom-link is-active" href="#" data-target="prep">Trip</a>
+    <a class="bottom-link is-disabled" href="#" data-target="results" aria-disabled="true">Verdict</a>
   </nav>
 
   <footer>
