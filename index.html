@@ -8,12 +8,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,800;0,900;1,800&family=Space+Mono:wght@700&family=Work+Sans:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vendor-awesomplete.css?v=1.1.5">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4.8">
 </head>
 <body data-screen="prep">
   <svg aria-hidden="true" class="svg-defs" focusable="false">
     <symbol id="icon-share" viewBox="0 0 24 24">
-      <path d="M18 8a3 3 0 1 0-2.82-4H15a3 3 0 0 0 .17 1L8.9 8.63A3 3 0 0 0 6 7a3 3 0 1 0 2.9 3.78l6.32 3.66A3 3 0 1 0 16.1 13l-6.32-3.66L16.1 5.7A3 3 0 0 0 18 8Z"/>
+      <path d="M18 8a3 3 0 1 0-2.82-4H15a3 3 0 0 0 .17 1L8.9 8.63A3 3 0 0 0 6 7a3 3 0 1 0 2.9 3.78l6.32 3.66A3 3 0 0 0 16.1 13l-6.32-3.66L16.1 5.7A3 3 0 0 0 18 8Z"/>
     </symbol>
     <symbol id="icon-download" viewBox="0 0 24 24">
       <path d="M11 3h2v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V3Z"/>
@@ -49,10 +49,16 @@
     <symbol id="icon-tools" viewBox="0 0 24 24">
       <path d="M7.7 2 11 5.3 8.8 7.5l1.7 1.7 2.2-2.2L16 10.3 10.3 16 2 7.7V2h5.7ZM17 13l5 5-4 4-5-5 4-4ZM5 18.5 13.2 10l.8.8L5.5 19H3v-2.5l1.5 2Z"/>
     </symbol>
+    <symbol id="icon-rain" viewBox="0 0 24 24">
+      <path d="M8.5 15a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm3.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm3.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM12 2a9.96 9.96 0 0 0-7.39 3.26c-.32.35-.49.82-.47 1.3.06 1.48.91 2.76 2.18 3.42A7 7 0 1 0 19 9a7 7 0 0 0-7-7z"/>
+    </symbol>
+    <symbol id="icon-drizzle" viewBox="0 0 24 24">
+      <path d="M9 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-4.5 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 3a9 9 0 0 0-6.65 2.93c-.29.32-.44.74-.42 1.17.05 1.33.82 2.48 1.96 3.08A6.3 6.3 0 1 0 18.3 9.3 6.3 6.3 0 0 0 12 3z"/>
+    </symbol>
   </svg>
 
   <header class="topbar">
-    <a class="brand" href="#" data-target="prep">Coat or Nope</a>
+    <a class="brand" href="#" data-target="prep">Coat or Nope<span class="brand-tagline">Clothing Only</span></a>
     <nav class="topnav" aria-label="Main">
       <a class="nav-link is-active" href="#" data-target="prep">Trip Details</a>
       <a class="nav-link is-disabled" href="#" data-target="results" aria-disabled="true">Verdict</a>
@@ -64,62 +70,126 @@
       <div class="wide-shell">
         <div class="intro">
           <h1 id="prep-title">Let's pack your <em>imaginary</em><br>suitcase.</h1>
-          <p>Tell us your story, and we'll tell you if you're going to freeze or fry.</p>
+          <p>Tell us your story, and we'll tell you if you're going to freeze or fry. <strong>Strictly clothing & footwear</strong>—we assume you can remember your toothbrush and passport.</p>
         </div>
 
         <form class="prep-form">
-          <section class="stops-panel" aria-labelledby="stops-title">
-            <svg class="sunburst" aria-hidden="true"><use href="#icon-sun"></use></svg>
-            <div class="stops-heading">
-              <h2 id="stops-title">Trip Stops</h2>
-              <p>Add every place where the weather gets a vote.</p>
+          <div class="sentence-builder-card">
+            <div class="sentence-row">
+              <span class="sentence-word">I am leaving on</span>
+              <span class="date-wrap">
+                <input type="date" id="trip-start-date" class="text-field sentence-date-field" required>
+              </span>
+              <span class="sentence-word">and going to:</span>
+              
+              <span id="stops-inline-container" class="stops-inline-container">
+                <!-- Inline stops will be generated dynamically by JS -->
+              </span>
+              
+              <button type="button" id="add-stop" class="add-stop-btn">
+                <svg class="icon-plus"><use href="#icon-plus-circle"></use></svg> Add Stop
+              </button>
             </div>
-            <div id="stops-list" class="stops-list"></div>
-          </section>
 
-          <div class="activity-line">
-            <strong>I'll be mostly</strong>
-            <label class="pill"><input type="checkbox" checked> fine dining</label>
-            <label class="pill"><input type="checkbox" checked> swimming</label>
-            <label class="pill"><input type="checkbox"> hiking</label>
-            <label class="pill"><input type="checkbox"> business meetings</label>
+            <hr class="sentence-divider">
+
+            <div class="sentence-options-row">
+              <div class="option-item toggle-item">
+                <span class="option-label">Laundry Access</span>
+                <label class="switch-toggle" for="laundry-access">
+                  <input type="checkbox" id="laundry-access">
+                  <span class="switch-slider"></span>
+                </label>
+                <div id="laundry-options" class="laundry-options-wrap" style="display: none;">
+                  <select id="laundry-frequency" class="laundry-select-field">
+                    <option value="halfway" selected>Once (Halfway)</option>
+                    <option value="3days">Every 3 Days (Frequent)</option>
+                    <option value="7days">Every 7 Days (Weekly)</option>
+                    <option value="custom">Once (Custom Day)</option>
+                  </select>
+                  <span id="laundry-day-wrap" class="laundry-day-wrap" style="display: none;">
+                    on day
+                    <input type="number" id="laundry-day" class="text-field laundry-day-field" min="1" max="90" placeholder="day" aria-label="Laundry day number">
+                  </span>
+                </div>
+              </div>
+
+              <div class="option-item select-item">
+                <span class="option-label">Airline Bag Limit</span>
+                <div class="select-wrap">
+                  <select id="bag-limit" class="text-field sentence-select-field">
+                    <option value="personal">Under-seat Personal Item (7kg / 15lbs)</option>
+                    <option value="carryon" selected>Large Cabin Bag / Carry-on (10kg / 22lbs)</option>
+                    <option value="checked">Standard Checked Bag (23kg / 50lbs)</option>
+                    <option value="duffel">Overpacker Duffel (No Limit)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="divider-add">
-            <span></span>
-            <button type="button" id="add-stop" class="inline-add">
-              <svg><use href="#icon-plus-circle"></use></svg>
-              Add Another Stop
-            </button>
-            <span></span>
-          </div>
+          <details class="additional-panel">
+            <summary>Additional things</summary>
+            <div class="planner-group">
+              <strong class="option-label" style="display:block; margin-bottom:8px;">I usually wear:</strong>
+              <div class="clothing-types-line">
+                <span class="group-title">Tops:</span>
+                <label class="pill"><input type="checkbox" id="top-tshirt" checked> T-Shirts</label>
+                <label class="pill"><input type="checkbox" id="top-shirt"> Button-downs / Blouses</label>
+                <label class="pill"><input type="checkbox" id="top-sweater"> Sweaters / Knitwear</label>
+                <label class="pill"><input type="checkbox" id="top-hoodie"> Hoodies</label>
+              </div>
+              <div class="clothing-types-line" style="margin-top: 10px;">
+                <span class="group-title">Bottoms:</span>
+                <label class="pill"><input type="checkbox" id="bot-jeans" checked> Jeans</label>
+                <label class="pill"><input type="checkbox" id="bot-chinos"> Chinos / Dress Pants</label>
+                <label class="pill"><input type="checkbox" id="bot-shorts"> Shorts</label>
+                <label class="pill"><input type="checkbox" id="bot-skirt"> Skirts</label>
+              </div>
+              <div class="clothing-types-line" style="margin-top: 10px;">
+                <span class="group-title">One-pieces:</span>
+                <label class="pill"><input type="checkbox" id="one-dress"> Dresses</label>
+                <label class="pill"><input type="checkbox" id="one-jumpsuit"> Jumpsuits / Rompers</label>
+                <label class="pill"><input type="checkbox" id="one-suit"> Suits / Matching Sets</label>
+              </div>
+              <div class="clothing-types-line" style="margin-top: 10px;">
+                <span class="group-title">Underwear:</span>
+                <label class="pill"><input type="checkbox" id="und-underwear" checked> Underwear</label>
+                <label class="pill"><input type="checkbox" id="und-socks" checked> Socks</label>
+                <label class="pill"><input type="checkbox" id="und-bras"> Bras</label>
+              </div>
+            </div>
+            
+            <hr class="sentence-divider">
 
-          <section class="baggage" aria-labelledby="baggage-title">
-            <div class="baggage-heading">
-              <h2 id="baggage-title">Baggage Size</h2>
-              <p>No, you don't need that third umbrella.</p>
+            <div class="rewear-slider-group">
+              <div class="slider-header-row">
+                <strong class="option-label">Re-wear Tolerance:</strong>
+                <span id="rewear-badge" class="rewear-badge">2 wears (Normal)</span>
+              </div>
+              <div class="slider-container">
+                <input type="range" id="rewear-slider" min="1" max="3" value="2" class="range-slider">
+                <div class="slider-labels">
+                  <span>1: Fresh Daily</span>
+                  <span>2: Normal (2 Wears)</span>
+                  <span>3: Super Re-user (3 Wears)</span>
+                </div>
+              </div>
             </div>
-            <div class="baggage-grid">
-              <label class="bag-option is-selected">
-                <input type="radio" name="bag" value="carry-on" checked>
-                <svg><use href="#icon-luggage"></use></svg>
-                <strong>Carry-on</strong>
-                <span>(The Optimist)</span>
-              </label>
-              <label class="bag-option">
-                <input type="radio" name="bag" value="checked">
-                <svg><use href="#icon-briefcase"></use></svg>
-                <strong>Checked</strong>
-                <span>(The Prepared)</span>
-              </label>
-              <label class="bag-option">
-                <input type="radio" name="bag" value="duffel">
-                <svg><use href="#icon-tools"></use></svg>
-                <strong>Duffel</strong>
-                <span>(The Chaos)</span>
-              </label>
+
+            <hr class="sentence-divider">
+
+            <strong class="option-label" style="display:block; margin-bottom:8px;">Activities & Extras:</strong>
+            <div class="activity-line">
+              <label class="pill"><input type="checkbox" id="act-dining"> fine dining</label>
+              <label class="pill"><input type="checkbox" id="act-swimming"> swimming</label>
+              <label class="pill"><input type="checkbox" id="act-hiking"> hiking</label>
+              <label class="pill"><input type="checkbox" id="act-business"> business meetings</label>
+              <label class="pill"><input type="checkbox" id="act-workout"> gym / workouts</label>
+              <label class="pill"><input type="checkbox" id="act-snowsports"> snow sports</label>
+              <label class="pill"><input type="checkbox" id="act-nightlife"> nightlife</label>
             </div>
-          </section>
+          </details>
 
           <div class="center-action">
             <button class="primary-button" type="submit">Get My Verdict</button>
@@ -131,95 +201,51 @@
 
     <section id="results" class="screen results-screen" aria-labelledby="results-title">
       <div class="narrow-shell">
+        <div id="weather-warning-banner" class="warning-banner" style="display: none;">
+          <!-- Inline warning banner when using historical archive data -->
+        </div>
+
+        <div id="trip-summary-header" class="trip-summary-header"></div>
+
         <section class="outlook" aria-labelledby="outlook-title">
           <h2 id="outlook-title" class="section-kicker">The Outlook</h2>
           <div class="weather-grid">
-            <article class="weather-card heat">
-              <span>Max Heat</span>
-              <strong>88<sup>&deg;</sup></strong>
-              <b>F</b>
-              <p>Tuesday in Barcelona</p>
-              <svg aria-hidden="true"><use href="#icon-sun"></use></svg>
-            </article>
-            <article class="weather-card freeze">
-              <span>Deep Freeze</span>
-              <strong>32<sup>&deg;</sup></strong>
-              <b>F</b>
-              <p>Friday in London</p>
-              <svg aria-hidden="true"><use href="#icon-snow"></use></svg>
-            </article>
+            <!-- Dynamic weather cards will be generated here -->
           </div>
+          <details class="forecast-details" id="forecast-expandable" style="display: none;">
+            <summary class="forecast-summary">Day-by-Day Forecast</summary>
+            <div class="forecast-table-wrap">
+              <table class="forecast-table">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Date</th>
+                    <th>Destination</th>
+                    <th>Temp</th>
+                    <th>Rain</th>
+                    <th>Condition</th>
+                    <th>Suggested Outfit</th>
+                  </tr>
+                </thead>
+                <tbody id="forecast-table-body">
+                  <!-- Dynamic rows generated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </details>
         </section>
 
         <section class="verdict" aria-labelledby="results-title">
           <p>The Final Word</p>
           <h1 id="results-title">Verdict: Pack a light coat, you big baby.</h1>
-          <span>It's going to be breezy in the evenings. Don't say we didn't warn you<br>when you're shivering over your tapas.</span>
+          <span id="results-desc">It's going to be breezy in the evenings. Don't say we didn't warn you when you're shivering over your tapas.</span>
         </section>
 
         <section class="packing" aria-labelledby="packing-title">
           <h2 id="packing-title" class="section-kicker">The "Don't Forget These" List</h2>
+          <p class="clothing-only-disclaimer" style="font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 20px; text-transform: uppercase;">strictly clothing & footwear—we assume you can remember your passport and toothbrush.</p>
           <div class="packing-grid">
-            <article class="city-list">
-              <h3><svg><use href="#icon-pin"></use></svg> Barcelona (Warm-ish)</h3>
-              <div class="checklist">
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>Light Linen Shirt</strong>
-                    <em>To look like you belong on a yacht you can't afford.</em>
-                  </span>
-                </label>
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>Jeans <b>Reuse</b></strong>
-                    <em>Wear these on the plane AND the tapas crawl. No one will know.</em>
-                  </span>
-                </label>
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>Breathable Sneakers <b>Reuse</b></strong>
-                    <em>For walking 20,000 steps to find that one specific tapas bar.</em>
-                  </span>
-                </label>
-              </div>
-            </article>
-
-            <article class="city-list">
-              <h3><svg><use href="#icon-pin"></use></svg> London (The Chilly Bit)</h3>
-              <div class="checklist">
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>The "Light" Coat</strong>
-                    <em>The protagonist of this journey. Don't leave it in the overhead bin.</em>
-                  </span>
-                </label>
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>Grey Hoodie <b>Reuse</b></strong>
-                    <em>Layer this under the coat. It's called "fashion," look it up.</em>
-                  </span>
-                </label>
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>Umbrella</strong>
-                    <em>Mathematically certain you'll lose this within 4 hours.</em>
-                  </span>
-                </label>
-                <label class="pack-item">
-                  <input type="checkbox">
-                  <span>
-                    <strong>Waterproof Boots</strong>
-                    <em>Because London puddles are actually portals to another dimension.</em>
-                  </span>
-                </label>
-              </div>
-            </article>
+            <!-- Dynamic checklist columns will be generated here -->
           </div>
         </section>
 
@@ -246,12 +272,22 @@
       <a href="#">Terms</a>
       <a href="#">Privacy</a>
       <a href="#">Contact</a>
+      <a href="#" id="reset-button" style="margin-left: 10px; opacity: 0.7;">Reset App</a>
     </nav>
-    <small>&copy; 2024 Coat or Nope</small>
+    <small>&copy; 2026 Coat or Nope</small>
   </footer>
 
   <div id="toast" role="status" aria-live="polite"></div>
+  
+  <div id="loading-overlay" class="loading-overlay" hidden>
+    <div class="loader-content">
+      <div class="spinner"></div>
+      <p id="loading-message">Consulting the weather gods...</p>
+      <button type="button" id="loading-cancel-btn" onclick="document.getElementById('loading-overlay').hidden=true;" style="margin-top:20px;background:transparent;border:2px solid rgba(255,255,255,0.4);color:#fff;padding:8px 20px;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;">Cancel</button>
+    </div>
+  </div>
+
   <script src="vendor-awesomplete.min.js?v=1.1.5"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=4.8"></script>
 </body>
 </html>

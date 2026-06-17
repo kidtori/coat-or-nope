@@ -1,24 +1,171 @@
+window.onerror = function(message, source, lineno, colno, error) {
+  console.error("JS Error:", message, "at", source + ":" + lineno + ":" + colno, error);
+};
+
 const screens = Array.from(document.querySelectorAll(".screen"));
 const navLinks = Array.from(document.querySelectorAll("[data-target]"));
-const bagOptions = Array.from(document.querySelectorAll(".bag-option"));
 const prepForm = document.querySelector(".prep-form");
-const stopsList = document.querySelector("#stops-list");
+const stopsInlineContainer = document.querySelector("#stops-inline-container");
 const addStopButton = document.querySelector("#add-stop");
 const toast = document.querySelector("#toast");
+const loadingOverlay = document.getElementById("loading-overlay");
+const loadingMessageText = document.getElementById("loading-message");
+const weatherWarningBanner = document.getElementById("weather-warning-banner");
 
 const locationCache = new Map();
 const tripStops = [];
 let verdictReady = false;
-let stopId = 0;
+
+// Packing Database
+const PACKING_ITEMS_DATABASE = {
+  essentials: [],
+  weather: {
+    freezing: [
+      { name: "Heavy Winter Parka", desc: "You will look like a giant marshmallow, but at least you'll be alive.", reuse: false },
+      { name: "Thermal Base Layers", desc: "It's what's on the inside that counts when it's freezing.", reuse: false }
+    ],
+    cold: [
+      { name: "The \"Light\" Coat", desc: "The protagonist of this journey. Don't leave it on the plane.", reuse: false },
+      { name: "Warm Hoodie", desc: "Layer this under the coat. It's called \"fashion,\" look it up.", reuse: true },
+      { name: "Jeans", desc: "Classic, robust, hides tapas/coffee stains well.", reuse: true }
+    ],
+    rainy: [
+      { name: "Raincoat", desc: "To stand out in the gloomy drizzle.", reuse: false },
+      { name: "Waterproof Boots", desc: "Because puddles are portals to another dimension.", reuse: true },
+      { name: "Extra Socks", desc: "Wet feet = bad mood. Pack double.", reuse: false }
+    ],
+    sunny: [
+      { name: "Light Linen Shirt", desc: "To look like you belong on a yacht you can't afford.", reuse: false },
+      { name: "Shorts / Skirts", desc: "Let those legs breathe!", reuse: false }
+    ],
+    moderate: [
+      { name: "Cardigan / Light Sweater", desc: "For when the evening draft hits.", reuse: true },
+      { name: "Comfortable Chinos", desc: "Versatile, smart-casual trousers.", reuse: true },
+      { name: "Classic T-Shirts", desc: "Perfect for layering.", reuse: false }
+    ]
+  },
+  activities: {
+    dining: [
+      { name: "Smart Button-Down / Blouse", desc: "One nice top for a fancy dinner.", reuse: false },
+      { name: "Tailored Trousers / Dress Pants", desc: "Smart bottoms. Leave the denim behind.", reuse: false },
+      { name: "Smart Shoes / Loafers", desc: "To get past the host at the entrance.", reuse: false }
+    ],
+    swimming: [
+      { name: "Swimwear", desc: "One swimsuit or trunks for the pool/beach.", reuse: false },
+      { name: "Light Cover-up / Rash Guard", desc: "For walking around the deck or beach.", reuse: false },
+      { name: "Flip-flops / Slides", desc: "To protect your feet on hot tiles.", reuse: true }
+    ],
+    hiking: [
+      { name: "Moisture-Wicking Tee", desc: "One synthetic shirt. No cotton (chills fast).", reuse: false },
+      { name: "Athletic Shorts / Stretchy Pants", desc: "Flexible bottoms for climbing hills.", reuse: false },
+      { name: "Hiking Socks", desc: "One pair of thick, cushioned socks.", reuse: false },
+      { name: "Sturdy Trail Shoes", desc: "Sneakers with actual grip on the soles.", reuse: true }
+    ],
+    business: [
+      { name: "Smart Blazer / Jacket", desc: "Instant professionalism booster.", reuse: true },
+      { name: "Ironed Collared Shirt / Blouse", desc: "Crisp and clean for the meeting.", reuse: false },
+      { name: "Dress Trousers / Chinos", desc: "Professional, smart-casual bottoms.", reuse: false },
+      { name: "Smart Dress Shoes / Loafers", desc: "Flat, neat footwear.", reuse: true }
+    ],
+    workout: [
+      { name: "Athletic Tee / Tank", desc: "Breathable shirt for one gym session.", reuse: false },
+      { name: "Gym Shorts / Leggings", desc: "Flexible workout bottoms.", reuse: false },
+      { name: "Workout Socks", desc: "Separate athletic socks.", reuse: false },
+      { name: "Workout Sneakers", desc: "For the gym floor or running path.", reuse: true }
+    ],
+    snowsports: [
+      { name: "Insulated Ski Jacket", desc: "Waterproof outer shell for the slopes.", reuse: false },
+      { name: "Waterproof Ski Pants", desc: "Insulated snow pants to stay dry.", reuse: false },
+      { name: "Thermal Base Layers", desc: "One set of top and bottom thermals.", reuse: false },
+      { name: "Thick Ski Socks", desc: "One pair of long, warm socks.", reuse: false }
+    ],
+    nightlife: [
+      { name: "Clubbing Top / Neat Shirt", desc: "One stylish top for the night out.", reuse: false },
+      { name: "Sleek Dark Trousers / Nice Pants", desc: "Smart bottoms that pass club door code.", reuse: false },
+      { name: "Nice Dancing Shoes", desc: "Clean shoes that are comfortable enough to stand in.", reuse: false }
+    ]
+  }
+};
+
+// Default setup helper
+const todayYmd = new Date().toISOString().split("T")[0];
+document.getElementById("trip-start-date").value = todayYmd;
 
 const defaultStops = [
-  { location: "Barcelona, Spain", date: "2026-07-14", days: 4 },
-  { location: "London, United Kingdom", date: "2026-07-18", days: 3 }
+  { location: "London, United Kingdom", days: 3 },
+  { location: "Bali, Indonesia", days: 10 }
 ];
+
+// Toggle laundry day input field
+const laundryAccess = document.getElementById("laundry-access");
+const laundryDayWrap = document.getElementById("laundry-day-wrap");
+const laundryDayInput = document.getElementById("laundry-day");
+const laundryFrequency = document.getElementById("laundry-frequency");
+const laundryOptions = document.getElementById("laundry-options");
+
+laundryAccess.addEventListener("change", () => {
+  const isChecked = laundryAccess.checked;
+  if (laundryOptions) {
+    laundryOptions.style.display = isChecked ? "inline-flex" : "none";
+  }
+  if (laundryDayWrap) {
+    laundryDayWrap.style.display = (isChecked && laundryFrequency && laundryFrequency.value === "custom") ? "inline-flex" : "none";
+  }
+  if (!isChecked) {
+    if (laundryDayInput) laundryDayInput.value = "";
+  }
+});
+
+if (laundryFrequency) {
+  laundryFrequency.addEventListener("change", () => {
+    if (laundryDayWrap) {
+      laundryDayWrap.style.display = (laundryAccess.checked && laundryFrequency.value === "custom") ? "inline-flex" : "none";
+    }
+  });
+}
+
+// Re-wear Tolerance slider control
+const rewearSlider = document.getElementById("rewear-slider");
+const rewearBadge = document.getElementById("rewear-badge");
+
+if (rewearSlider && rewearBadge) {
+  const badgeLabels = {
+    "1": "1 wear (Fresh Daily)",
+    "2": "2 wears (Normal)",
+    "3": "3 wears (Super Re-user)"
+  };
+  
+  rewearSlider.addEventListener("input", (e) => {
+    rewearBadge.textContent = badgeLabels[e.target.value] || `${e.target.value} wears`;
+  });
+  
+  // Make tick labels clickable for ease of use
+  const sliderLabels = document.querySelector(".slider-labels");
+  if (sliderLabels) {
+    Array.from(sliderLabels.children).forEach((label, idx) => {
+      label.addEventListener("click", () => {
+        rewearSlider.value = idx + 1;
+        rewearSlider.dispatchEvent(new Event("input"));
+      });
+    });
+  }
+}
+
+// Reset app button
+document.getElementById("reset-button").addEventListener("click", (e) => {
+  e.preventDefault();
+  localStorage.removeItem("coatOrNope_tripState");
+  location.reload();
+});
+
+// Add stop button listener
+addStopButton.addEventListener("click", () => {
+  createStopRow();
+  showToast("Another stop added. Suitcase size adjusted.");
+});
 
 function setVerdictReady(isReady) {
   verdictReady = isReady;
-
   navLinks
     .filter((link) => link.dataset.target === "results")
     .forEach((link) => {
@@ -52,53 +199,74 @@ function showToast(message) {
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     toast.classList.remove("show");
-  }, 2200);
+  }, 2500);
 }
 
-function createStopRow(stop = {}) {
-  stopId += 1;
-  const row = document.createElement("div");
-  row.className = "stop-row";
-  row.dataset.stopId = String(stopId);
-
-  row.innerHTML = `
-    <span class="stop-number" aria-label="Stop number"></span>
-    <span class="stop-word going">I am going to</span>
-    <span class="location-wrap">
-      <input class="text-field city-field location-input" type="text" value="${escapeAttribute(stop.location || "")}" placeholder="City, Country" autocomplete="off" aria-label="City and country">
-    </span>
-    <span class="stop-word on">on</span>
-    <input class="text-field date-field" type="date" value="${escapeAttribute(stop.date || "")}" aria-label="Trip date">
-    <span class="stop-word for">for</span>
-    <input class="text-field days-field" type="number" min="1" max="30" value="${Number(stop.days || 3)}" aria-label="Number of days">
-    <span class="stop-word days">days.</span>
-    <button class="remove-stop" type="button" aria-label="Remove stop">&times;</button>
-  `;
-
-  stopsList.appendChild(row);
-  attachLocationAutocomplete(row.querySelector(".location-input"));
-  renumberStops();
+// Add days to ISO date string helper
+function addDays(dateStr, days) {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0];
 }
 
-function escapeAttribute(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+// Check if a date string falls inside forecast window (next 14 days)
+function isDateInForecastRange(dateStr) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+  
+  const diffTime = target - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays <= 14;
 }
 
-function renumberStops() {
-  const rows = Array.from(document.querySelectorAll(".stop-row"));
-
-  rows.forEach((row, index) => {
-    row.querySelector(".stop-number").textContent = String(index + 1);
-    const removeButton = row.querySelector(".remove-stop");
-    removeButton.disabled = rows.length === 1;
-    removeButton.classList.toggle("is-disabled", rows.length === 1);
-  });
+// Shift dates back 1 year for archive comparison
+function getArchiveDates(startStr, endStr) {
+  const s = new Date(startStr);
+  const e = new Date(endStr);
+  s.setFullYear(s.getFullYear() - 1);
+  e.setFullYear(e.getFullYear() - 1);
+  return {
+    archiveStart: s.toISOString().split("T")[0],
+    archiveEnd: e.toISOString().split("T")[0]
+  };
 }
 
+// Fetch with a hard timeout so we never hang forever
+function fetchWithTimeout(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+// Open-Meteo API Fetcher (Celsius by default)
+async function fetchWeather(lat, lon, startStr, endStr) {
+  const isForecast = isDateInForecastRange(startStr);
+  let url;
+  if (isForecast) {
+    url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=auto`;
+  } else {
+    const { archiveStart, archiveEnd } = getArchiveDates(startStr, endStr);
+    url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${archiveStart}&end_date=${archiveEnd}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=auto`;
+  }
+
+  try {
+    const response = await fetchWithTimeout(url, 8000);
+    if (!response.ok) throw new Error("Weather details unavailable");
+    const json = await response.json();
+    return {
+      daily: json.daily,
+      isHistorical: !isForecast
+    };
+  } catch (error) {
+    console.error("Open-Meteo fetch failed:", error);
+    return null;
+  }
+}
+
+// Nominatim Autocomplete & Geocoding Cache
 async function fetchLocations(query) {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
@@ -112,7 +280,7 @@ async function fetchLocations(query) {
   url.searchParams.set("accept-language", "en");
 
   try {
-    const response = await fetch(url.toString());
+    const response = await fetchWithTimeout(url.toString(), 6000);
     if (!response.ok) throw new Error("Location lookup failed");
     const places = await response.json();
     const mapped = dedupePlaces(places.map(formatPlace).filter(Boolean));
@@ -150,8 +318,130 @@ function formatPlace(place) {
   };
 }
 
+async function geocodeCity(cityStr) {
+  const query = cityStr.trim();
+  if (query.length < 2) return null;
+  const cacheKey = query.toLowerCase();
+  
+  if (locationCache.has(cacheKey)) {
+    const list = locationCache.get(cacheKey);
+    if (list && list.length > 0) return list[0];
+  }
+  
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("accept-language", "en");
+
+  try {
+    const response = await fetchWithTimeout(url.toString(), 6000);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data && data.length > 0) {
+      const place = formatPlace(data[0]);
+      if (place) {
+        locationCache.set(cacheKey, [place]);
+        return place;
+      }
+    }
+  } catch (e) {
+    console.error("Geocoding failed", e);
+  }
+  return null;
+}
+
+function getDefaultCoordinates(cityName) {
+  const name = cityName.toLowerCase();
+  if (name.includes("bali")) return { lat: -8.4095, lon: 115.1889, label: "Bali, Indonesia" };
+  if (name.includes("london")) return { lat: 51.5074, lon: -0.1278, label: "London, United Kingdom" };
+  if (name.includes("barcelona")) return { lat: 41.3851, lon: 2.1734, label: "Barcelona, Spain" };
+  if (name.includes("paris")) return { lat: 48.8566, lon: 2.3522, label: "Paris, France" };
+  if (name.includes("tokyo")) return { lat: 35.6762, lon: 139.6503, label: "Tokyo, Japan" };
+  if (name.includes("new york")) return { lat: 40.7128, lon: -74.0060, label: "New York, USA" };
+  return { lat: 41.3851, lon: 2.1734, label: cityName }; // Fallback to Barcelona
+}
+
+// Add stops inline inside natural sentence builder card
+function createStopRow(stop = {}) {
+  const index = stopsInlineContainer.querySelectorAll(".stop-inline-item").length;
+  
+  const stopItem = document.createElement("span");
+  stopItem.className = "stop-inline-item";
+  stopItem.dataset.index = index;
+
+  stopItem.innerHTML = `
+    ${index > 0 ? '<span class="sentence-arrow">→</span>' : ''}
+    <span class="location-input-wrapper">
+      <input class="text-field sentence-location-field location-input" type="text" value="${escapeAttribute(stop.location || "")}" placeholder="City, Country" autocomplete="off" aria-label="City and country" required>
+    </span>
+    <span class="sentence-word">for</span>
+    <input class="text-field sentence-nights-field days-field" type="number" min="1" max="30" value="${Number(stop.days || 3)}" aria-label="Nights" required>
+    <span class="sentence-word">nights</span>
+    ${index > 0 ? '<button class="remove-stop-inline" type="button" aria-label="Remove stop">&times;</button>' : ''}
+  `;
+
+  stopsInlineContainer.appendChild(stopItem);
+
+  const locInput = stopItem.querySelector(".location-input");
+  attachLocationAutocomplete(locInput);
+
+  if (index > 0) {
+    stopItem.querySelector(".remove-stop-inline").addEventListener("click", () => {
+      stopItem.remove();
+      renumberInlineStops();
+      showToast("Stop removed. Suitcase size adjusted.");
+    });
+  }
+}
+
+function renumberInlineStops() {
+  const items = Array.from(stopsInlineContainer.querySelectorAll(".stop-inline-item"));
+  items.forEach((item, index) => {
+    item.dataset.index = index;
+    
+    // Fix Arrow
+    const arrow = item.querySelector(".sentence-arrow");
+    if (index === 0 && arrow) {
+      arrow.remove();
+    } else if (index > 0 && !arrow) {
+      const arrowSpan = document.createElement("span");
+      arrowSpan.className = "sentence-arrow";
+      arrowSpan.textContent = "→";
+      item.insertBefore(arrowSpan, item.firstChild);
+    }
+
+    // Fix Remove Button
+    const removeBtn = item.querySelector(".remove-stop-inline");
+    if (index === 0 && removeBtn) {
+      removeBtn.remove();
+    } else if (index > 0 && !removeBtn) {
+      const btn = document.createElement("button");
+      btn.className = "remove-stop-inline";
+      btn.type = "button";
+      btn.ariaLabel = "Remove stop";
+      btn.innerHTML = "&times;";
+      btn.addEventListener("click", () => {
+        item.remove();
+        renumberInlineStops();
+        showToast("Stop removed. Suitcase size adjusted.");
+      });
+      item.appendChild(btn);
+    }
+  });
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function attachLocationAutocomplete(input) {
-  if (!window.Awesomplete) return attachFallbackLocationAutocomplete(input);
+  if (!window.Awesomplete) return;
 
   const autocomplete = new window.Awesomplete(input, {
     minChars: 2,
@@ -176,113 +466,912 @@ function attachLocationAutocomplete(input) {
 
   input.addEventListener("awesomplete-selectcomplete", () => {
     const selected = input._locationOptions.find((option) => option.label === input.value);
-    if (selected) input.dataset.location = JSON.stringify(selected);
+    if (selected) {
+      input.dataset.location = JSON.stringify(selected);
+    }
   });
 
   return autocomplete;
 }
 
-function attachFallbackLocationAutocomplete(input) {
-  const list = document.createElement("ul");
-  list.className = "location-suggestions";
-  list.hidden = true;
-  input.parentElement.appendChild(list);
-
-  let lookupTimer;
-  let options = [];
-
-  input.addEventListener("input", () => {
-    delete input.dataset.location;
-    window.clearTimeout(lookupTimer);
-
-    lookupTimer = window.setTimeout(async () => {
-      options = await fetchLocations(input.value);
-      renderLocationSuggestions(list, options);
-    }, 350);
-  });
-
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") list.hidden = true;
-  });
-
-  list.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-  });
-
-  list.addEventListener("click", (event) => {
-    const item = event.target.closest("[data-location-index]");
-    if (!item) return;
-    const selected = options[Number(item.dataset.locationIndex)];
-    if (!selected) return;
-    input.value = selected.label;
-    input.dataset.location = JSON.stringify(selected);
-    list.hidden = true;
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!input.parentElement.contains(event.target)) list.hidden = true;
-  });
-}
-
-function renderLocationSuggestions(list, options) {
-  list.innerHTML = "";
-
-  if (!options.length) {
-    list.hidden = true;
-    return;
-  }
-
-  options.forEach((option, index) => {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.locationIndex = String(index);
-    button.innerHTML = `<strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(option.detail)}</span>`;
-    item.appendChild(button);
-    list.appendChild(item);
-  });
-
-  list.hidden = false;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
 function collectStops() {
-  return Array.from(document.querySelectorAll(".stop-row")).map((row) => {
-    const locationInput = row.querySelector(".location-input");
+  return Array.from(stopsInlineContainer.querySelectorAll(".stop-inline-item")).map((item) => {
+    const locationInput = item.querySelector(".location-input");
+    const daysInput = item.querySelector(".days-field");
     return {
       location: locationInput.value.trim(),
-      date: row.querySelector(".date-field").value,
-      days: Number(row.querySelector(".days-field").value || 1),
+      days: Number(daysInput.value || 1),
       selectedLocation: locationInput.dataset.location ? JSON.parse(locationInput.dataset.location) : null
     };
   });
-}
-
-function syncResultsWithStops(stops) {
-  const first = stops[0];
-  const second = stops[1] || stops[0];
-  const firstCity = shortPlaceName(first?.location || "Barcelona");
-  const secondCity = shortPlaceName(second?.location || "London");
-
-  const weatherLocations = document.querySelectorAll(".weather-card p");
-  if (weatherLocations[0]) weatherLocations[0].textContent = `Warmest stop: ${firstCity}`;
-  if (weatherLocations[1]) weatherLocations[1].textContent = `Chilliest stop: ${secondCity}`;
-
-  const cityTitles = document.querySelectorAll(".city-list h3");
-  if (cityTitles[0]) cityTitles[0].lastChild.textContent = ` ${firstCity} (Warm-ish)`;
-  if (cityTitles[1]) cityTitles[1].lastChild.textContent = ` ${secondCity} (The Chilly Bit)`;
 }
 
 function shortPlaceName(location) {
   return location.split(",")[0].trim() || location;
 }
 
+// Weather classification rules (Celsius)
+function classifyWeather(maxTemp, minTemp, rainSum, weatherCodes) {
+  if (minTemp < 0) return "freezing";
+  if (minTemp < 11) return "cold";
+  
+  // WMO codes representing rain/snow showers or drizzle
+  const rainCodes = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99];
+  const snowCodes = [71, 73, 75, 77, 85, 86];
+  const hasRainCode = weatherCodes.some(code => rainCodes.includes(code) || snowCodes.includes(code));
+  
+  if (rainSum > 1.0 || hasRainCode) return "rainy";
+  if (maxTemp > 24) return "sunny";
+  return "moderate";
+}
+
+function getWeatherClassLabel(weatherClass) {
+  switch (weatherClass) {
+    case "freezing": return "Freezing Cold";
+    case "cold": return "Chilly & Cool";
+    case "rainy": return "Wet & Soggy";
+    case "sunny": return "Sunny & Warm";
+    default: return "Moderate Temps";
+  }
+}
+
+function getWeatherEmojiAndDesc(code) {
+  switch (code) {
+    case 0: return { emoji: "☀️", desc: "Clear Sky" };
+    case 1: return { emoji: "🌤️", desc: "Mainly Clear" };
+    case 2: return { emoji: "⛅", desc: "Partly Cloudy" };
+    case 3: return { emoji: "☁️", desc: "Overcast" };
+    case 45:
+    case 48: return { emoji: "🌫️", desc: "Foggy" };
+    case 51:
+    case 53:
+    case 55: return { emoji: "🌧️", desc: "Drizzle" };
+    case 56:
+    case 57: return { emoji: "🌧️", desc: "Freezing Drizzle" };
+    case 61:
+    case 63:
+    case 65: return { emoji: "🌧️", desc: "Rainy" };
+    case 66:
+    case 67: return { emoji: "🌧️", desc: "Freezing Rain" };
+    case 71:
+    case 73:
+    case 75: return { emoji: "❄️", desc: "Snowing" };
+    case 77: return { emoji: "❄️", desc: "Snow Grains" };
+    case 80:
+    case 81:
+    case 82: return { emoji: "🌧️", desc: "Rain Showers" };
+    case 85:
+    case 86: return { emoji: "❄️", desc: "Snow Showers" };
+    case 95: return { emoji: "⛈️", desc: "Thunderstorm" };
+    case 96:
+    case 99: return { emoji: "⛈️", desc: "Stormy w/ Hail" };
+    default: return { emoji: "🌡️", desc: "Clear" };
+  }
+}
+
+function formatDateShort(dateStr) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const options = { weekday: 'short', month: 'short', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+}
+
+// Master execution workflow
+prepForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  
+  // Validate clothing types selections
+  const hasTop = document.querySelectorAll(".clothing-types-line input[id^='top-']:checked").length > 0;
+  const hasBottom = document.querySelectorAll(".clothing-types-line input[id^='bot-']:checked").length > 0;
+  const hasOnePiece = document.querySelectorAll(".clothing-types-line input[id^='one-']:checked").length > 0;
+  
+  if (!((hasTop && hasBottom) || hasOnePiece)) {
+    showToast("Select at least one complete outfit type (either a top & bottom, or a one-piece / suit).");
+    return;
+  }
+
+  const stops = collectStops();
+
+  if (stops.some((stop) => !stop.location)) {
+    showToast("Name every stop first. The weather hates ambiguity.");
+    return;
+  }
+
+  // Validate laundry day
+  const isLaundryChecked = laundryAccess.checked;
+  const laundryFrequencyEl = document.getElementById("laundry-frequency");
+  const laundryFrequencyVal = laundryFrequencyEl ? laundryFrequencyEl.value : "halfway";
+  const laundryDayVal = Number(laundryDayInput.value);
+  const totalNights = stops.reduce((sum, s) => sum + s.days, 0);
+
+  if (isLaundryChecked && laundryFrequencyVal === "custom" && laundryDayVal && laundryDayVal > totalNights) {
+    showToast(`Laundry day can't be after the trip ends (${totalNights} nights).`);
+    return;
+  }
+
+  // Show loading screen
+  loadingOverlay.hidden = false;
+  const loadingMessages = [
+    "Consulting the weather gods...",
+    "Checking if you'll freeze in your destinations...",
+    "Judging your fashion choices based on precipitation...",
+    "Calculating exactly how many socks you'll lose...",
+    "Analyzing luggage density vs. travel anxiety...",
+    "Checking if your destinations are still there..."
+  ];
+  let msgIndex = 0;
+  loadingMessageText.textContent = loadingMessages[0];
+  const messageTimer = setInterval(() => {
+    msgIndex = (msgIndex + 1) % loadingMessages.length;
+    loadingMessageText.textContent = loadingMessages[msgIndex];
+  }, 1100);
+
+  function dismissLoading() {
+    clearTimeout(safetyTimer);
+    clearInterval(messageTimer);
+    loadingOverlay.hidden = true;
+  }
+
+  // Hard safety — always dismiss after 12s no matter what
+  const safetyTimer = setTimeout(() => dismissLoading(), 12000);
+
+  // Parse starting date and continuous nights sequence
+  let currentDate = document.getElementById("trip-start-date").value;
+  if (!currentDate) currentDate = todayYmd;
+
+  const processedStops = [];
+  let historicalCities = [];
+
+  try {
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
+      const stopStartDate = currentDate;
+      const stopEndDate = addDays(stopStartDate, stop.days);
+      currentDate = stopEndDate;
+
+      // --- Resolve Coordinates ---
+      // Use pre-selected coords if available (user picked from autocomplete dropdown)
+      let lat, lon, displayName;
+      if (stop.selectedLocation) {
+        lat = parseFloat(stop.selectedLocation.lat);
+        lon = parseFloat(stop.selectedLocation.lon);
+        displayName = stop.selectedLocation.label;
+      } else {
+        // Try to geocode via API with a tight race, fall back to built-in lookup
+        const geocodePromise = geocodeCity(stop.location);
+        const raceTimeout = new Promise(resolve => setTimeout(() => resolve(null), 5000));
+        const geocoded = await Promise.race([geocodePromise, raceTimeout]);
+        if (geocoded) {
+          lat = parseFloat(geocoded.lat);
+          lon = parseFloat(geocoded.lon);
+          displayName = geocoded.label;
+        } else {
+          const fallback = getDefaultCoordinates(stop.location);
+          lat = fallback.lat;
+          lon = fallback.lon;
+          displayName = fallback.label;
+        }
+      }
+
+      // --- Fetch Weather (race against timeout, fallback to heuristics) ---
+      const weatherPromise = fetchWeather(lat, lon, stopStartDate, stopEndDate);
+      const weatherTimeout = new Promise(resolve => setTimeout(() => resolve(null), 6000));
+      const weatherResult = await Promise.race([weatherPromise, weatherTimeout]);
+
+      let maxTemp = 18;
+      let minTemp = 8;
+      let totalRain = 0;
+      let wmoCodes = [];
+      let usedArchive = false;
+      let maxTempDate = stopStartDate;
+      let minTempDate = stopStartDate;
+      const stopDaysData = [];
+
+      if (weatherResult && weatherResult.daily && weatherResult.daily.time) {
+        const daily = weatherResult.daily;
+        maxTemp = Math.max(...(daily.temperature_2m_max || [18]));
+        minTemp = Math.min(...(daily.temperature_2m_min || [8]));
+
+        if (daily.temperature_2m_max && daily.time) {
+          const maxIdx = daily.temperature_2m_max.indexOf(maxTemp);
+          if (maxIdx !== -1) maxTempDate = daily.time[maxIdx];
+        }
+        if (daily.temperature_2m_min && daily.time) {
+          const minIdx = daily.temperature_2m_min.indexOf(minTemp);
+          if (minIdx !== -1) minTempDate = daily.time[minIdx];
+        }
+
+        totalRain = (daily.precipitation_sum || []).reduce((a, b) => a + b, 0);
+        wmoCodes = daily.weathercode || [];
+        usedArchive = weatherResult.isHistorical;
+
+        const limit = Math.min(stop.days, daily.time ? daily.time.length : stop.days);
+        for (let d = 0; d < limit; d++) {
+          stopDaysData.push({
+            date: daily.time[d],
+            city: shortPlaceName(displayName),
+            maxTemp: Math.round(daily.temperature_2m_max ? daily.temperature_2m_max[d] : 18),
+            minTemp: Math.round(daily.temperature_2m_min ? daily.temperature_2m_min[d] : 8),
+            precip: daily.precipitation_sum ? daily.precipitation_sum[d] : 0,
+            wcode: daily.weathercode ? daily.weathercode[d] : 0
+          });
+        }
+      } else {
+        // Heuristic fallback when API unavailable
+        const n = displayName.toLowerCase();
+        if (n.includes("bali") || n.includes("singapore") || n.includes("thailand") || n.includes("indonesia") || n.includes("malaysia") || n.includes("vietnam") || n.includes("cambodia") || n.includes("miami") || n.includes("dubai") || n.includes("cancun")) {
+          maxTemp = 32; minTemp = 24; totalRain = 10;
+        } else if (n.includes("london") || n.includes("manchester") || n.includes("edinburgh") || n.includes("dublin") || n.includes("amsterdam") || n.includes("brussels") || n.includes("oslo") || n.includes("reykjavik")) {
+          maxTemp = 14; minTemp = 6; totalRain = 3;
+        } else if (n.includes("new york") || n.includes("chicago") || n.includes("toronto") || n.includes("montreal") || n.includes("boston")) {
+          maxTemp = 18; minTemp = 4; totalRain = 2;
+        } else if (n.includes("paris") || n.includes("barcelona") || n.includes("madrid") || n.includes("rome") || n.includes("milan") || n.includes("lisbon")) {
+          maxTemp = 22; minTemp = 12; totalRain = 1;
+        } else if (n.includes("tokyo") || n.includes("osaka") || n.includes("seoul") || n.includes("beijing") || n.includes("shanghai")) {
+          maxTemp = 20; minTemp = 10; totalRain = 2;
+        } else if (n.includes("sydney") || n.includes("melbourne") || n.includes("auckland") || n.includes("perth")) {
+          maxTemp = 24; minTemp = 14; totalRain = 1;
+        }
+
+        for (let d = 0; d < stop.days; d++) {
+          stopDaysData.push({
+            date: addDays(stopStartDate, d),
+            city: shortPlaceName(displayName),
+            maxTemp, minTemp,
+            precip: totalRain / Math.max(stop.days, 1),
+            wcode: totalRain > 3 ? 61 : 0
+          });
+        }
+      }
+
+      if (usedArchive) historicalCities.push(shortPlaceName(displayName));
+
+      const weatherClass = classifyWeather(maxTemp, minTemp, totalRain, wmoCodes);
+      processedStops.push({
+        location: displayName,
+        shortName: shortPlaceName(displayName),
+        days: stop.days,
+        maxTemp: Math.round(maxTemp),
+        minTemp: Math.round(minTemp),
+        maxTempDate,
+        minTempDate,
+        weatherClass,
+        isHistorical: usedArchive,
+        daysForecast: stopDaysData
+      });
+    }
+
+    // Save state
+    try {
+      localStorage.setItem("coatOrNope_tripState", JSON.stringify({
+        startDate: document.getElementById("trip-start-date").value,
+        stops,
+        laundryChecked: laundryAccess.checked,
+        laundryFrequency: laundryFrequency ? laundryFrequency.value : "halfway",
+        laundryDay: laundryDayInput.value,
+        bagLimit: document.getElementById("bag-limit").value,
+        rewearTolerance: rewearSlider ? rewearSlider.value : "2",
+        activities: Array.from(document.querySelectorAll(".activity-line input[type='checkbox']:checked")).map(el => el.id),
+        clothingTypes: Array.from(document.querySelectorAll(".clothing-types-line input[type='checkbox']:checked")).map(el => el.id)
+      }));
+    } catch (e) {
+      console.warn("Storage write blocked", e);
+    }
+
+    renderResults(processedStops, historicalCities);
+    setVerdictReady(true);
+    showScreen("results");
+
+  } catch (error) {
+    console.error("Pipeline failed:", error);
+    if (processedStops.length > 0) {
+      renderResults(processedStops, historicalCities);
+      setVerdictReady(true);
+      showScreen("results");
+    } else {
+      showToast("Something went wrong. Try again or check the browser console.");
+    }
+  } finally {
+    dismissLoading();
+  }
+});
+
+function shouldIncludeWeatherItem(itemName, selections) {
+  const name = itemName.toLowerCase();
+  if (name.includes("hoodie")) return selections.topHoodie;
+  if (name.includes("jeans")) return selections.botJeans;
+  if (name.includes("linen shirt")) return selections.topShirt;
+  if (name.includes("shorts / skirts")) return (selections.botShorts || selections.botSkirt);
+  if (name.includes("cardigan") || name.includes("sweater")) return selections.topSweater;
+  if (name.includes("chinos")) return selections.botChinos;
+  if (name.includes("t-shirt")) return selections.topTshirt;
+  return true;
+}
+
+function getSuggestedOutfitForDay(dayClass, selections) {
+  const { topTshirt, topShirt, topSweater, topHoodie, botJeans, botChinos, botShorts, botSkirt, oneDress, oneJumpsuit, oneSuit } = selections;
+
+  if (dayClass === "sunny" || dayClass === "moderate") {
+    if (oneDress) return "👗 Dress";
+    if (oneJumpsuit) return "🥋 Jumpsuit / Romper";
+    if (oneSuit) return "👔 Suit Combo";
+  } else if (dayClass === "cold" || dayClass === "freezing") {
+    if (oneSuit) return "👔 Suit Combo (layer up)";
+  }
+
+  let topText = "";
+  if (topTshirt && topShirt) {
+    topText = dayClass === "sunny" ? "T-Shirt" : "Button-down";
+  } else if (topTshirt) {
+    topText = "T-Shirt";
+  } else if (topShirt) {
+    topText = "Button-down";
+  } else {
+    if (oneDress) return "👗 Dress";
+    if (oneJumpsuit) return "🥋 Jumpsuit / Romper";
+    if (oneSuit) return "👔 Suit Combo";
+    topText = "T-Shirt";
+  }
+
+  let bottomText = "";
+  if (dayClass === "sunny") {
+    if (botShorts) bottomText = "Shorts";
+    else if (botSkirt) bottomText = "Skirt";
+    else if (botJeans) bottomText = "Jeans";
+    else if (botChinos) bottomText = "Chinos";
+    else bottomText = "Pants";
+  } else {
+    if (botJeans) bottomText = "Jeans";
+    else if (botChinos) bottomText = "Chinos";
+    else if (botSkirt) bottomText = "Skirt";
+    else if (botShorts) bottomText = "Shorts";
+    else bottomText = "Pants";
+  }
+
+  let outerText = "";
+  if (dayClass === "freezing") {
+    outerText = " + Winter Parka";
+    if (topSweater) topText = `Thermal + Sweater`;
+    else if (topHoodie) topText = `Thermal + Hoodie`;
+    else topText = `Thermal + ${topText}`;
+  } else if (dayClass === "cold") {
+    outerText = " + Light Coat";
+    if (topSweater) topText = `Sweater over ${topText}`;
+    else if (topHoodie) topText = `Hoodie over ${topText}`;
+  } else if (dayClass === "rainy") {
+    outerText = " + Raincoat";
+  } else if (dayClass === "moderate") {
+    if (topSweater) outerText = " + Sweater layer";
+    else if (topHoodie) outerText = " + Hoodie layer";
+  }
+
+  return `👕 ${topText} & ${bottomText}${outerText}`;
+}
+
+function renderResults(stops, historicalCities) {
+  // 1. Show Historical average weather warning banner if any stop is archive-based
+  if (historicalCities.length > 0) {
+    const listStr = [...new Set(historicalCities)].join(" & ");
+    weatherWarningBanner.innerHTML = `⚠️ Note: Your trip to <strong>${listStr}</strong> is far in the future. We used historical averages from previous years. Pack according to averages and check back closer to your departure!`;
+    weatherWarningBanner.style.display = "block";
+  } else {
+    weatherWarningBanner.style.display = "none";
+  }
+
+  // 1.5. Render Trip Summary Header
+  const tripSummaryHeader = document.getElementById("trip-summary-header");
+  const totalNights = stops.reduce((sum, s) => sum + s.days, 0);
+  const startDateVal = document.getElementById("trip-start-date").value || todayYmd;
+  const endDateVal = addDays(startDateVal, totalNights);
+  const formattedStart = formatDateFriendly(startDateVal);
+  const formattedEnd = formatDateFriendly(endDateVal);
+  const stopsSummary = stops.map(s => `${s.shortName} (${s.days} night${s.days > 1 ? 's' : ''})`).join(" → ");
+  tripSummaryHeader.innerHTML = `
+    <h3>Trip to ${stopsSummary}</h3>
+    <p>From ${formattedStart} to ${formattedEnd} &bull; Total duration: ${totalNights} night${totalNights > 1 ? 's' : ''}</p>
+  `;
+
+  // 2. Compute extremes for Outlook cards
+  let absoluteMax = -100;
+  let absoluteMin = 100;
+  let hottestStop = stops[0];
+  let coldestStop = stops[0];
+  let absoluteMaxDate = stops[0].maxTempDate;
+  let absoluteMinDate = stops[0].minTempDate;
+
+  stops.forEach((s) => {
+    if (s.maxTemp > absoluteMax) {
+      absoluteMax = s.maxTemp;
+      hottestStop = s;
+      absoluteMaxDate = s.maxTempDate;
+    }
+    if (s.minTemp < absoluteMin) {
+      absoluteMin = s.minTemp;
+      coldestStop = s;
+      absoluteMinDate = s.minTempDate;
+    }
+  });
+
+  const maxDateFormatted = formatDateFriendly(absoluteMaxDate);
+  const minDateFormatted = formatDateFriendly(absoluteMinDate);
+
+  const allDays = [];
+  stops.forEach(s => {
+    if (s.daysForecast) {
+      allDays.push(...s.daysForecast);
+    }
+  });
+
+  const WMO_RAIN_CODES = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99, 71, 73, 75, 77, 85, 86];
+  const rainyDays = allDays.filter(day => day.precip > 1.0 || WMO_RAIN_CODES.includes(day.wcode));
+  const rainyDaysCount = rainyDays.length;
+  const totalDaysCount = allDays.length;
+
+  const weatherGrid = document.querySelector(".outlook .weather-grid");
+  weatherGrid.innerHTML = `
+    <article class="weather-card heat">
+      <span>Max Heat</span>
+      <strong>${absoluteMax}<sup>&deg;</sup></strong>
+      <b>C</b>
+      <p>Expected on ${maxDateFormatted} in ${hottestStop.shortName}</p>
+      <svg aria-hidden="true"><use href="#icon-sun"></use></svg>
+    </article>
+    <article class="weather-card freeze">
+      <span>Deep Freeze</span>
+      <strong>${absoluteMin}<sup>&deg;</sup></strong>
+      <b>C</b>
+      <p>Expected on ${minDateFormatted} in ${coldestStop.shortName}</p>
+      <svg aria-hidden="true"><use href="#icon-snow"></use></svg>
+    </article>
+    <article class="weather-card rain">
+      <span>Rainy Days</span>
+      <strong>${rainyDaysCount}</strong>
+      <b>/ ${totalDaysCount}</b>
+      <p>${rainyDaysCount > 0 ? `${rainyDaysCount} day${rainyDaysCount > 1 ? 's' : ''} of rain expected` : 'Dry skies forecast!'}</p>
+      <svg aria-hidden="true"><use href="#icon-rain"></use></svg>
+    </article>
+  `;
+
+  // Build and render day-by-day table
+  const forecastTableBody = document.getElementById("forecast-table-body");
+  forecastTableBody.innerHTML = "";
+
+  const selections = {
+    topTshirt: document.getElementById("top-tshirt").checked,
+    topShirt: document.getElementById("top-shirt").checked,
+    topSweater: document.getElementById("top-sweater").checked,
+    topHoodie: document.getElementById("top-hoodie").checked,
+    botJeans: document.getElementById("bot-jeans").checked,
+    botChinos: document.getElementById("bot-chinos").checked,
+    botShorts: document.getElementById("bot-shorts").checked,
+    botSkirt: document.getElementById("bot-skirt").checked,
+    oneDress: document.getElementById("one-dress").checked,
+    oneJumpsuit: document.getElementById("one-jumpsuit").checked,
+    oneSuit: document.getElementById("one-suit").checked,
+    undUnderwear: document.getElementById("und-underwear").checked,
+    undSocks: document.getElementById("und-socks").checked,
+    undBras: document.getElementById("und-bras").checked
+  };
+
+  allDays.forEach((day, index) => {
+    const { emoji, desc: condDesc } = getWeatherEmojiAndDesc(day.wcode);
+    const dateFormatted = formatDateShort(day.date);
+    const dayClass = classifyWeather(day.maxTemp, day.minTemp, day.precip, [day.wcode]);
+    const suggestedOutfit = getSuggestedOutfitForDay(dayClass, selections);
+    
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>Day ${index + 1}</td>
+      <td>${dateFormatted}</td>
+      <td><strong>${day.city}</strong></td>
+      <td class="temp-col">${day.maxTemp}° / ${day.minTemp}°</td>
+      <td class="rain-col">${day.precip > 0 ? `${day.precip.toFixed(1)} mm` : '0 mm'}</td>
+      <td>${emoji} ${condDesc}</td>
+      <td>${suggestedOutfit}</td>
+    `;
+    forecastTableBody.appendChild(tr);
+  });
+
+  const forecastExpandable = document.getElementById("forecast-expandable");
+  forecastExpandable.style.display = "block";
+
+  // 3. Generate Verdict
+  const hasFreezing = stops.some(s => s.weatherClass === "freezing");
+  const hasCold = stops.some(s => s.weatherClass === "cold");
+  const hasRainy = stops.some(s => s.weatherClass === "rainy");
+  
+  let verdictTitle = "Verdict: Pack a light coat, you big baby.";
+  let verdictDesc = "It's going to be breezy in the evenings. Don't say we didn't warn you when you're shivering.";
+  let verdictClass = "";
+
+  if (hasFreezing) {
+    verdictTitle = "Verdict: Pack a heavy winter coat, you shivering leaf.";
+    verdictDesc = `It's literally freezing in ${coldestStop.shortName}. Layer a thick winter parka or you'll turn into a human popsicle. We don't want to hear you whining.`;
+  } else if (hasCold && hasRainy) {
+    verdictTitle = "Verdict: Yes. Pack a raincoat and warm layers.";
+    verdictDesc = `Chilly and wet. Double misery. Bring a waterproof outer layer and a warm hoodie to wear underneath.`;
+  } else if (hasCold) {
+    verdictTitle = "Verdict: Pack a light coat, you big baby.";
+    verdictDesc = `Temps are dropping in ${coldestStop.shortName}. A jacket is mandatory unless you enjoy shivering in coffee shops looking like an amateur.`;
+  } else if (hasRainy) {
+    verdictTitle = "Verdict: Bring a rain mac. You're going to get soggy.";
+    verdictDesc = `Wet stop forecast. A good raincoat is highly advised. Unless you enjoy looking like a wet stray cat.`;
+  } else {
+    // Only sunny/moderate
+    verdictTitle = "Verdict: Nope. Leave the coat at home.";
+    verdictDesc = `Warm skies and clear paths ahead. Carrying a coat is a waste of precious suitcase volume. Sweating in outerwear is not a fashion statement.`;
+    verdictClass = "nope";
+  }
+
+  const isLaundryChecked = laundryAccess.checked;
+  const bagLimit = document.getElementById("bag-limit").value;
+
+  if (bagLimit === "personal") {
+    if (totalNights > 3) {
+      if (verdictClass === "nope") {
+        verdictDesc += " Keep in mind you selected a 7kg Under-seat Personal Item limit. Since no coat is needed, packing will be a breeze, but keep those shirts rolled tight to fit everything in.";
+      } else {
+        verdictDesc += " Keep in mind you selected a 7kg Under-seat Personal Item limit. You'll need to wear that coat, two hoodies, and four shirts on the plane to avoid gate check fees.";
+      }
+    } else {
+      if (verdictClass === "nope") {
+        verdictDesc += " Small personal item? Keep it light. No coat needed means extra room for snacks.";
+      } else {
+        verdictDesc += " Small personal item? Keep it light. Leave the just-in-cases behind.";
+      }
+    }
+  } else if (bagLimit === "checked") {
+    if (verdictClass === "nope") {
+      verdictDesc += " Since you chose a Checked Bag, you'll probably pack a jacket anyway 'just in case'. We see you, overpacker.";
+    } else {
+      verdictDesc += " Since you chose a Checked Bag, you'll probably pack three extra jackets anyway 'just in case'. We see you, overpacker.";
+    }
+  } else if (bagLimit === "carryon") {
+    if (totalNights > 7) {
+      verdictDesc += " Carry-on only for a week? Roll everything, use packing cubes, and pray you don't buy souvenirs.";
+    } else {
+      verdictDesc += " Standard carry-on is plenty of space for a short trip. No gate-check anxiety for you.";
+    }
+  } else if (bagLimit === "duffel") {
+    verdictDesc += " Packing in a duffel bag is pure chaos. Prepare for everything to be a wrinkled mess.";
+  }
+
+  // Long trip no laundry warning
+  if (totalNights > 14 && !isLaundryChecked) {
+    verdictDesc += " Also, traveling for over two weeks without laundry? You'll need a giant suitcase or prepare to smell a bit ripe by day 10. Seriously, find a laundromat.";
+  }
+
+  const verdictCard = document.querySelector(".results-screen .verdict");
+  verdictCard.className = `verdict ${verdictClass}`;
+  document.querySelector(".verdict h1").textContent = verdictTitle;
+  document.querySelector("#results-desc").innerHTML = verdictDesc;
+
+  // 4. Generate Checklist columns
+  const packingGrid = document.querySelector(".packing-grid");
+  packingGrid.innerHTML = "";
+
+  // Essentials Quantity depending on laundry Access & Frequency
+  let essentialsQty = totalNights + 1;
+  let laundryNote = "";
+
+  if (isLaundryChecked) {
+    const freqVal = laundryFrequency ? laundryFrequency.value : "halfway";
+    let cycleDays = Math.ceil(totalNights / 2);
+    let freqLabel = "once halfway through";
+
+    if (freqVal === "3days") {
+      cycleDays = 3;
+      freqLabel = "every 3 days";
+    } else if (freqVal === "7days") {
+      cycleDays = 7;
+      freqLabel = "every 7 days";
+    } else if (freqVal === "custom") {
+      const customVal = Number(laundryDayInput.value);
+      if (customVal && customVal <= totalNights) {
+        cycleDays = customVal;
+        freqLabel = `on day ${customVal}`;
+      } else {
+        freqLabel = "once halfway through";
+      }
+    }
+
+    essentialsQty = Math.max(2, Math.min(totalNights + 1, cycleDays + 1));
+    laundryNote = `<em>Laundry access available ${freqLabel}, so we cut clothes to a ${essentialsQty} day supply.</em>`;
+  }
+
+  // Set to keep track of packed items to avoid duplicates
+  const packedNames = new Set([
+    "Underwear", "Socks", "Everyday Sneakers / Walking Shoes", "Sleepwear / Pajamas", "Bras"
+  ]);
+
+  const rewearTolerance = rewearSlider ? Number(rewearSlider.value) : 2;
+
+  // Column: Underwear (Briefcase icon)
+  const undUnderwear = document.getElementById("und-underwear").checked;
+  const undSocks = document.getElementById("und-socks").checked;
+  const undBras = document.getElementById("und-bras").checked;
+
+  const colUnderwear = document.createElement("article");
+  colUnderwear.className = "city-list";
+  colUnderwear.innerHTML = `
+    <h3><svg><use href="#icon-briefcase"></use></svg> Underwear</h3>
+    <div class="checklist"></div>
+  `;
+  const underwearChecklist = colUnderwear.querySelector(".checklist");
+
+  if (undUnderwear) {
+    underwearChecklist.appendChild(createCountChecklistItem(`Underwear (${essentialsQty} pairs)`, `Count: ${essentialsQty} total. ${laundryNote}`));
+  }
+  if (undSocks) {
+    underwearChecklist.appendChild(createCountChecklistItem(`Socks (${essentialsQty} pairs)`, `Count: ${essentialsQty} total. ${laundryNote}`));
+  }
+  if (undBras) {
+    const brasQty = Math.max(1, Math.min(3, Math.ceil(essentialsQty / rewearTolerance)));
+    underwearChecklist.appendChild(createCountChecklistItem(`Bras (${brasQty})`, `Count: ${brasQty} total. Supportive layers.`));
+  }
+
+  if (underwearChecklist.children.length > 0) {
+    packingGrid.appendChild(colUnderwear);
+  }
+
+  // Column A: Basic (Luggage icon)
+  const colBase = document.createElement("article");
+  colBase.className = "city-list";
+  colBase.innerHTML = `
+    <h3><svg><use href="#icon-luggage"></use></svg> Basic</h3>
+    <div class="checklist"></div>
+  `;
+  const baseChecklist = colBase.querySelector(".checklist");
+
+  // A.2. Add footwear and sleepwear
+  const hasRainyStop = stops.some(s => s.weatherClass === "rainy");
+  const sneakersDesc = hasRainyStop
+    ? "Wear these on the plane. (And maybe don't wear your pristine white sneakers in the wet weather)."
+    : "Wear these on the plane to save precious suitcase space.";
+  baseChecklist.appendChild(createCountChecklistItem(`Everyday Sneakers / Walking Shoes (1 pair)`, sneakersDesc));
+  baseChecklist.appendChild(createCountChecklistItem(`Sleepwear / Pajamas (1-2 sets)`, "For getting some shut-eye. Do not sleep in your jeans."));
+
+  // A.3. Dynamic clothes selections
+  const topTshirt = document.getElementById("top-tshirt").checked;
+  const topShirt = document.getElementById("top-shirt").checked;
+  const topSweater = document.getElementById("top-sweater").checked;
+  const topHoodie = document.getElementById("top-hoodie").checked;
+  const oneDress = document.getElementById("one-dress").checked;
+  const oneJumpsuit = document.getElementById("one-jumpsuit").checked;
+  const oneSuit = document.getElementById("one-suit").checked;
+
+  const dailyCategories = [];
+  if (topTshirt) dailyCategories.push({ id: "top-tshirt", name: "T-Shirts" });
+  if (topShirt) dailyCategories.push({ id: "top-shirt", name: "Button-downs / Blouses" });
+  if (oneDress) dailyCategories.push({ id: "one-dress", name: "Dresses" });
+  if (oneJumpsuit) dailyCategories.push({ id: "one-jumpsuit", name: "Jumpsuits / Rompers" });
+  if (oneSuit) dailyCategories.push({ id: "one-suit", name: "Suits / Matching Sets" });
+
+  const dailyQuantities = {};
+  let topsQty = 0;
+
+  if (dailyCategories.length > 0) {
+    const baseQty = Math.floor(essentialsQty / dailyCategories.length);
+    let remainder = essentialsQty % dailyCategories.length;
+    
+    dailyCategories.forEach((cat, idx) => {
+      let qty = baseQty;
+      if (idx < remainder) qty += 1;
+      if (qty === 0 && essentialsQty > 0) qty = 1;
+
+      let allowedWears = 1;
+      if (cat.id === "top-tshirt") {
+        allowedWears = Math.min(rewearTolerance, 2); // sweat prone, max 2 wears
+      } else if (cat.id === "top-shirt") {
+        allowedWears = rewearTolerance; // max 3 wears
+      } else if (cat.id === "one-dress") {
+        allowedWears = rewearTolerance; // max 3 wears
+      } else if (cat.id === "one-jumpsuit") {
+        allowedWears = Math.min(rewearTolerance, 2); // rompers max 2 wears
+      } else if (cat.id === "one-suit") {
+        allowedWears = rewearTolerance; // suits max 3 wears
+      }
+
+      dailyQuantities[cat.id] = Math.ceil(qty / allowedWears);
+    });
+
+    if (topTshirt) {
+      const qty = dailyQuantities["top-tshirt"];
+      baseChecklist.appendChild(createCountChecklistItem(`T-Shirts (${qty})`, `Count: ${qty} total. Daily wear.`));
+      packedNames.add("T-Shirts");
+      packedNames.add("Classic T-Shirts");
+      topsQty += qty;
+    }
+    if (topShirt) {
+      const qty = dailyQuantities["top-shirt"];
+      baseChecklist.appendChild(createCountChecklistItem(`Button-downs / Blouses (${qty})`, `Count: ${qty} total. Daily wear.`));
+      packedNames.add("Button-downs / Blouses");
+      packedNames.add("Button-down / Blouse");
+      topsQty += qty;
+    }
+    if (oneDress) {
+      const qty = dailyQuantities["one-dress"];
+      baseChecklist.appendChild(createCountChecklistItem(`Dresses (${qty})`, `Count: ${qty} total. Daily wear one-piece.`));
+      packedNames.add("Dresses");
+      packedNames.add("Dress");
+    }
+    if (oneJumpsuit) {
+      const qty = dailyQuantities["one-jumpsuit"];
+      baseChecklist.appendChild(createCountChecklistItem(`Jumpsuits / Rompers (${qty})`, `Count: ${qty} total. Daily wear one-piece.`));
+      packedNames.add("Jumpsuits / Rompers");
+    }
+    if (oneSuit) {
+      const qty = dailyQuantities["one-suit"];
+      baseChecklist.appendChild(createCountChecklistItem(`Suits / Matching Sets (${qty})`, `Count: ${qty} total. Matching suit outfits.`));
+      packedNames.add("Suits / Matching Sets");
+    }
+  }
+
+  // Repeatable layers (Sweaters & Hoodies)
+  const repeatableQty = Math.max(1, Math.min(3, Math.ceil(essentialsQty / rewearTolerance)));
+  if (topSweater) {
+    baseChecklist.appendChild(createCountChecklistItem(`Sweaters / Knitwear (${repeatableQty})`, `Count: ${repeatableQty} total. Repeatable layer.`));
+    packedNames.add("Sweaters / Knitwear");
+    packedNames.add("Cardigan / Light Sweater");
+  }
+  if (topHoodie) {
+    baseChecklist.appendChild(createCountChecklistItem(`Hoodies (${repeatableQty})`, `Count: ${repeatableQty} total. Repeatable layer.`));
+    packedNames.add("Hoodies");
+    packedNames.add("Warm Hoodie");
+  }
+
+  // Bottoms (repeatable, scaled dynamically based on separate topsQty)
+  const botJeans = document.getElementById("bot-jeans").checked;
+  const botChinos = document.getElementById("bot-chinos").checked;
+  const botShorts = document.getElementById("bot-shorts").checked;
+  const botSkirt = document.getElementById("bot-skirt").checked;
+
+  const bottomsQty = Math.max(1, Math.min(3, Math.ceil(topsQty / rewearTolerance)));
+  const finalBottomsQty = topsQty === 0 ? 0 : bottomsQty;
+
+  if (finalBottomsQty > 0) {
+    if (botJeans) {
+      baseChecklist.appendChild(createCountChecklistItem(`Jeans (${finalBottomsQty})`, `Count: ${finalBottomsQty} total. Repeatable bottom.`));
+      packedNames.add("Jeans");
+    }
+    if (botChinos) {
+      baseChecklist.appendChild(createCountChecklistItem(`Chinos / Dress Pants (${finalBottomsQty})`, `Count: ${finalBottomsQty} total. Repeatable bottom.`));
+      packedNames.add("Chinos / Dress Pants");
+      packedNames.add("Comfortable Chinos");
+    }
+    if (botShorts) {
+      baseChecklist.appendChild(createCountChecklistItem(`Shorts (${finalBottomsQty})`, `Count: ${finalBottomsQty} total. Repeatable bottom.`));
+      packedNames.add("Shorts");
+      packedNames.add("Shorts / Skirts");
+    }
+    if (botSkirt) {
+      baseChecklist.appendChild(createCountChecklistItem(`Skirts (${finalBottomsQty})`, `Count: ${finalBottomsQty} total. Repeatable bottom.`));
+      packedNames.add("Skirts");
+    }
+  }
+
+  if (baseChecklist.children.length > 0) {
+    packingGrid.appendChild(colBase);
+  }
+
+  // Column B: Weather Specific (Sun icon)
+  const colWeather = document.createElement("article");
+  colWeather.className = "city-list";
+  colWeather.innerHTML = `
+    <h3><svg><use href="#icon-sun"></use></svg> Weather Specific</h3>
+    <div class="checklist"></div>
+  `;
+  const weatherChecklist = colWeather.querySelector(".checklist");
+
+  // Track reusables to prevent duplicates
+  const packedReusables = new Set();
+
+  // B.1. Collect weather-specific items across all unique weather classes on the trip
+  const uniqueWeatherClasses = [...new Set(stops.map(s => s.weatherClass))];
+  uniqueWeatherClasses.forEach((wClass) => {
+    const weatherItems = PACKING_ITEMS_DATABASE.weather[wClass] || [];
+    weatherItems.forEach((item) => {
+      // Respect style checkboxes
+      if (!shouldIncludeWeatherItem(item.name, selections)) return;
+      // Deduplicate
+      if (packedNames.has(item.name)) return;
+      if (packedReusables.has(item.name)) return;
+      weatherChecklist.appendChild(createChecklistItemElement(item, packedReusables));
+    });
+  });
+
+  if (weatherChecklist.children.length > 0) {
+    packingGrid.appendChild(colWeather);
+  }
+
+  // Column C: Activity Extras (Tools icon)
+  const colExtras = document.createElement("article");
+  colExtras.className = "city-list";
+  colExtras.innerHTML = `
+    <h3><svg><use href="#icon-tools"></use></svg> Activity Extras</h3>
+    <div class="checklist"></div>
+  `;
+  const extrasChecklist = colExtras.querySelector(".checklist");
+
+  // C.1. Collect activity-specific items if checked
+  const checkedActivities = [
+    { id: "act-dining", dbKey: "dining" },
+    { id: "act-swimming", dbKey: "swimming" },
+    { id: "act-hiking", dbKey: "hiking" },
+    { id: "act-business", dbKey: "business" },
+    { id: "act-workout", dbKey: "workout" },
+    { id: "act-snowsports", dbKey: "snowsports" },
+    { id: "act-nightlife", dbKey: "nightlife" }
+  ];
+
+  checkedActivities.forEach((act) => {
+    if (document.getElementById(act.id).checked) {
+      const actItems = PACKING_ITEMS_DATABASE.activities[act.dbKey] || [];
+      actItems.forEach((item) => {
+        if (packedNames.has(item.name)) return;
+        if (packedReusables.has(item.name)) return;
+        extrasChecklist.appendChild(createChecklistItemElement(item, packedReusables));
+      });
+    }
+  });
+
+  if (extrasChecklist.children.length > 0) {
+    packingGrid.appendChild(colExtras);
+  }
+}
+
+function createChecklistItemElement(item, packedReusables) {
+  const label = document.createElement("label");
+  label.className = "pack-item";
+
+  let displayName = item.name;
+  let isReused = false;
+
+  if (item.reuse) {
+    if (packedReusables.has(item.name)) {
+      isReused = true;
+      displayName = `${item.name} <b>Reuse</b>`;
+    } else {
+      packedReusables.add(item.name);
+    }
+  }
+
+  label.innerHTML = `
+    <input type="checkbox">
+    <span>
+      <strong>${displayName}</strong>
+      <em>${item.desc || ""}</em>
+    </span>
+  `;
+
+  label.querySelector("input").addEventListener("change", (e) => {
+    label.classList.toggle("is-packed", e.target.checked);
+  });
+
+  return label;
+}
+
+function createCountChecklistItem(name, desc) {
+  const label = document.createElement("label");
+  label.className = "pack-item";
+
+  label.innerHTML = `
+    <input type="checkbox">
+    <span>
+      <strong>${name}</strong>
+      <em>${desc}</em>
+    </span>
+  `;
+
+  label.querySelector("input").addEventListener("change", (e) => {
+    label.classList.toggle("is-packed", e.target.checked);
+  });
+
+  return label;
+}
+
+// Navigation links handler
 navLinks.forEach((link) => {
   link.addEventListener("click", (event) => {
     const target = link.dataset.target;
@@ -292,52 +1381,93 @@ navLinks.forEach((link) => {
   });
 });
 
-prepForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const stops = collectStops();
-
-  if (stops.some((stop) => !stop.location)) {
-    showToast("Name every stop first. The weather hates ambiguity.");
-    return;
-  }
-
-  tripStops.splice(0, tripStops.length, ...stops);
-  syncResultsWithStops(stops);
-  setVerdictReady(true);
-  showScreen("results");
-});
-
-bagOptions.forEach((option) => {
-  option.addEventListener("click", () => {
-    bagOptions.forEach((item) => item.classList.remove("is-selected"));
-    option.classList.add("is-selected");
-  });
-});
-
-addStopButton.addEventListener("click", () => {
-  createStopRow();
-  showToast("Another stop added. The suitcase sighs.");
-});
-
-stopsList.addEventListener("click", (event) => {
-  const removeButton = event.target.closest(".remove-stop");
-  if (!removeButton || removeButton.disabled) return;
-  removeButton.closest(".stop-row").remove();
-  renumberStops();
-});
-
+// Secondary Action Buttons on results screen
 document.querySelectorAll(".secondary-button").forEach((button) => {
   button.addEventListener("click", () => {
     const label = button.textContent.trim();
     if (label.includes("Export")) {
-      showToast("Packing list copied. Probably to somewhere useful.");
+      const items = Array.from(document.querySelectorAll(".pack-item")).map(label => {
+        const checked = label.querySelector("input").checked ? "[x]" : "[ ]";
+        const title = label.querySelector("strong").textContent;
+        return `${checked} ${title}`;
+      }).join("\n");
+      
+      navigator.clipboard.writeText(items).then(() => {
+        showToast("Packing list copied to clipboard! Ready to paste.");
+      }).catch(() => {
+        showToast("Failed to copy list automatically.");
+      });
     } else if (label.includes("Email")) {
-      showToast("Pretend email sent. Inbox chaos preserved.");
+      showToast("Email sending simulated. Inbox chaos avoided.");
     } else {
-      showToast("Grocery trip emotionally sponsored.");
+      showToast("Grocery trip successfully sponsored. Potassium level +100.");
     }
   });
 });
 
-defaultStops.forEach(createStopRow);
+// Initialize form layout state from cache or default stops
+try {
+  const savedState = localStorage.getItem("coatOrNope_tripState");
+  if (savedState) {
+    const parsed = JSON.parse(savedState);
+    document.getElementById("trip-start-date").value = parsed.startDate || todayYmd;
+    laundryAccess.checked = parsed.laundryChecked || false;
+    
+    if (laundryFrequency && parsed.laundryFrequency) {
+      laundryFrequency.value = parsed.laundryFrequency;
+    }
+    
+    if (laundryOptions) {
+      laundryOptions.style.display = parsed.laundryChecked ? "inline-flex" : "none";
+    }
+    
+    laundryDayWrap.style.display = (parsed.laundryChecked && (parsed.laundryFrequency || "halfway") === "custom") ? "inline-flex" : "none";
+    laundryDayInput.value = parsed.laundryDay || "";
+    document.getElementById("bag-limit").value = parsed.bagLimit || "carryon";
+    
+    // Restore re-wear slider tolerance
+    if (parsed.rewearTolerance && rewearSlider) {
+      rewearSlider.value = parsed.rewearTolerance;
+      rewearSlider.dispatchEvent(new Event("input"));
+    }
+    
+    // Restore activities checkboxes
+    if (parsed.activities) {
+      document.querySelectorAll(".activity-line input[type='checkbox']").forEach(el => {
+        el.checked = parsed.activities.includes(el.id);
+      });
+    }
+
+    // Restore clothing types checkboxes
+    if (parsed.clothingTypes) {
+      document.querySelectorAll(".clothing-types-line input[type='checkbox']").forEach(el => {
+        el.checked = parsed.clothingTypes.includes(el.id);
+      });
+    }
+
+    if (parsed.stops && parsed.stops.length > 0) {
+      parsed.stops.forEach(s => createStopRow(s));
+    } else {
+      defaultStops.forEach(s => createStopRow(s));
+    }
+  } else {
+    // Fill defaults
+    defaultStops.forEach(s => createStopRow(s));
+  }
+} catch (e) {
+  defaultStops.forEach(s => createStopRow(s));
+}
+
 setVerdictReady(false);
+
+function formatDateFriendly(dateStr) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const options = { weekday: 'long', month: 'short', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+}
+
+
+/* --- Outfit Planner Step 1.5 --- */
+// Outfit Planner screen removed
