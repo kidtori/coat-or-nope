@@ -306,6 +306,7 @@ async function fetchForecastWeather(lat, lon, startStr, endStr) {
     return json.daily || null;
   } catch (e) {
     console.error("Forecast fetch failed:", e);
+    showToast(`Warning: Forecast API failed (${e.message}). Using fallback averages.`);
     return null;
   }
 }
@@ -331,6 +332,7 @@ async function fetchArchiveWeather(lat, lon, startStr, endStr) {
     return null;
   } catch (e) {
     console.error("Archive fetch failed:", e);
+    showToast(`Warning: Historical API failed (${e.message}). Using fallback averages.`);
     return null;
   }
 }
