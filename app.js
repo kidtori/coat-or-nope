@@ -336,14 +336,14 @@ async function fetchWeather(lat, lon, startStr, endStr) {
   if (startStr > forecastMaxStr) {
     const archiveDaily = await fetchArchiveWeather(lat, lon, startStr, endStr);
     if (!archiveDaily) return null;
-    return { daily: archiveDaily, isHistorical: true };
+    return { daily: archiveDaily, isHistorical: true, isPartialHistorical: false };
   }
 
   // Case 2: Entirely in the forecast range
   if (endStr <= forecastMaxStr) {
     const forecastDaily = await fetchForecastWeather(lat, lon, startStr, endStr);
     if (!forecastDaily) return null;
-    return { daily: forecastDaily, isHistorical: false };
+    return { daily: forecastDaily, isHistorical: false, isPartialHistorical: false };
   }
 
   // Case 3: Overlapping boundary (split & merge)
@@ -354,8 +354,8 @@ async function fetchWeather(lat, lon, startStr, endStr) {
     const [forecastDaily, archiveDaily] = await Promise.all([forecastPartPromise, archivePartPromise]);
 
     if (!forecastDaily && !archiveDaily) return null;
-    if (!forecastDaily) return { daily: archiveDaily, isHistorical: true };
-    if (!archiveDaily) return { daily: forecastDaily, isHistorical: false };
+    if (!forecastDaily) return { daily: archiveDaily, isHistorical: true, isPartialHistorical: false };
+    if (!archiveDaily) return { daily: forecastDaily, isHistorical: false, isPartialHistorical: false };
 
     // Merge daily arrays
     const mergedDaily = {
@@ -368,7 +368,8 @@ async function fetchWeather(lat, lon, startStr, endStr) {
 
     return {
       daily: mergedDaily,
-      isHistorical: true
+      isHistorical: false,
+      isPartialHistorical: true
     };
   } catch (error) {
     console.error("Split-and-merge weather fetch failed:", error);
@@ -803,6 +804,7 @@ prepForm.addEventListener("submit", async (event) => {
       let totalRain = 0;
       let wmoCodes = [];
       let usedArchive = false;
+      let usedPartial = false;
       let maxTempDate = stopStartDate;
       let minTempDate = stopStartDate;
       const stopDaysData = [];
@@ -824,6 +826,7 @@ prepForm.addEventListener("submit", async (event) => {
         totalRain = (daily.precipitation_sum || []).reduce((a, b) => a + b, 0);
         wmoCodes = daily.weathercode || [];
         usedArchive = weatherResult.isHistorical;
+        usedPartial = weatherResult.isPartialHistorical || false;
 
         const limit = Math.min(stop.days, daily.time ? daily.time.length : stop.days);
         for (let d = 0; d < limit; d++) {
@@ -877,6 +880,7 @@ prepForm.addEventListener("submit", async (event) => {
         minTempDate,
         weatherClass,
         isHistorical: usedArchive,
+        isPartialHistorical: usedPartial,
         daysForecast: stopDaysData
       });
     }
@@ -1049,12 +1053,19 @@ function getSuggestedOutfitForDay(dayClass, selections) {
 
 function renderResults(stops, historicalCities) {
   lastProcessedStops = stops;
-  lastHistoricalCities = historicalCities;
+
+  const realHistoricalCities = [...new Set(stops.filter(s => s.isHistorical).map(s => s.shortName))];
+  const partialHistoricalCities = [...new Set(stops.filter(s => s.isPartialHistorical).map(s => s.shortName))];
+  lastHistoricalCities = realHistoricalCities;
 
   // 1. Show Historical average weather warning banner if any stop is archive-based
-  if (historicalCities.length > 0) {
-    const listStr = [...new Set(historicalCities)].join(" & ");
+  if (realHistoricalCities.length > 0) {
+    const listStr = realHistoricalCities.join(" & ");
     weatherWarningBanner.innerHTML = `⚠️ Note: Your trip to <strong>${listStr}</strong> is far in the future. We used historical averages from previous years. Pack according to averages and check back closer to your departure!`;
+    weatherWarningBanner.style.display = "block";
+  } else if (partialHistoricalCities.length > 0) {
+    const listStr = partialHistoricalCities.join(" & ");
+    weatherWarningBanner.innerHTML = `⚠️ Note: Part of your trip to <strong>${listStr}</strong> is beyond our 14-day forecast window. We merged real-time forecasts with historical averages for the later dates.`;
     weatherWarningBanner.style.display = "block";
   } else {
     weatherWarningBanner.style.display = "none";
