@@ -289,12 +289,32 @@ function getArchiveDates(startStr, endStr) {
   };
 }
 
-// Fetch with a hard timeout so we never hang forever
-function fetchWithTimeout(url, timeoutMs = 8000) {
+// Fetch with a hard timeout so we never hang forever, with automatic CORS proxy fallback on block/failure
+async function fetchWithTimeout(url, timeoutMs = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { signal: controller.signal })
-    .finally(() => clearTimeout(timer));
+  
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    return response;
+  } catch (error) {
+    clearTimeout(timer);
+    console.warn("Direct fetch failed, retrying via proxy mirror:", error);
+    
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const backupController = new AbortController();
+    const backupTimer = setTimeout(() => backupController.abort(), timeoutMs);
+    
+    try {
+      const response = await fetch(proxyUrl, { signal: backupController.signal });
+      clearTimeout(backupTimer);
+      return response;
+    } catch (proxyError) {
+      clearTimeout(backupTimer);
+      throw new Error(`Network failure. Direct: ${error.message}. Proxy: ${proxyError.message}`);
+    }
+  }
 }
 
 async function fetchForecastWeather(lat, lon, startStr, endStr) {
