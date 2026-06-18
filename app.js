@@ -1166,6 +1166,8 @@ function renderResults(stops, historicalCities) {
     undBras: document.getElementById("und-bras").checked
   };
 
+  const forecastMaxStr = addDays(todayYmd, 13);
+
   allDays.forEach((day, index) => {
     const { emoji, desc: condDesc } = getWeatherEmojiAndDesc(day.wcode);
     const dateFormatted = formatDateShort(day.date);
@@ -1175,6 +1177,11 @@ function renderResults(stops, historicalCities) {
       <span class="outfit-tag tag-${item.type}">${item.icon} ${item.text}</span>
     `).join(" ");
     
+    const isDayHistorical = day.date > forecastMaxStr;
+    const typeBadge = isDayHistorical 
+      ? `<span class="data-source-badge historical">Climate Avg</span>`
+      : `<span class="data-source-badge forecast">Forecast</span>`;
+    
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>Day ${index + 1}</td>
@@ -1182,7 +1189,7 @@ function renderResults(stops, historicalCities) {
       <td><strong>${day.city}</strong></td>
       <td class="temp-col">${formatTemp(day.maxTemp)} / ${formatTemp(day.minTemp)}</td>
       <td class="rain-col">${day.precip > 0 ? `${day.precip.toFixed(1)} mm` : '0 mm'}</td>
-      <td>${emoji} ${condDesc}</td>
+      <td>${emoji} ${condDesc} ${typeBadge}</td>
       <td>${outfitHtml}</td>
     `;
     forecastTableBody.appendChild(tr);
