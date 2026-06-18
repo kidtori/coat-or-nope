@@ -135,8 +135,16 @@ const PACKING_ITEMS_DATABASE = {
   }
 };
 
+function getLocalTodayYmd() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Default setup helper
-const todayYmd = new Date().toISOString().split("T")[0];
+const todayYmd = getLocalTodayYmd();
 document.getElementById("trip-start-date").value = todayYmd;
 
 const defaultStops = [
@@ -329,7 +337,7 @@ async function fetchArchiveWeather(lat, lon, startStr, endStr) {
 
 // Open-Meteo API Fetcher with automatic split-and-merge for forecast boundary crossings
 async function fetchWeather(lat, lon, startStr, endStr) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalTodayYmd();
   const forecastMaxStr = addDays(todayStr, 13); // 14 days of forecast including today
 
   // Case 1: Entirely in the historical archive range
@@ -1058,14 +1066,39 @@ function renderResults(stops, historicalCities) {
   const partialHistoricalCities = [...new Set(stops.filter(s => s.isPartialHistorical).map(s => s.shortName))];
   lastHistoricalCities = realHistoricalCities;
 
+  // Calculate first historical day for banner description
+  const allDays = [];
+  stops.forEach(s => {
+    if (s.daysForecast) {
+      allDays.push(...s.daysForecast);
+    }
+  });
+
+  const todayStr = getLocalTodayYmd();
+  const forecastMaxStr = addDays(todayStr, 13);
+  let firstHistoricalDayNumber = null;
+  let firstHistoricalDateFormatted = null;
+
+  for (let i = 0; i < allDays.length; i++) {
+    if (allDays[i].date > forecastMaxStr) {
+      firstHistoricalDayNumber = i + 1;
+      firstHistoricalDateFormatted = formatDateFriendly(allDays[i].date);
+      break;
+    }
+  }
+
   // 1. Show Historical average weather warning banner if any stop is archive-based
-  if (realHistoricalCities.length > 0) {
+  if (realHistoricalCities.length > 0 && partialHistoricalCities.length === 0) {
     const listStr = realHistoricalCities.join(" & ");
     weatherWarningBanner.innerHTML = `⚠️ Note: Your trip to <strong>${listStr}</strong> is far in the future. We used historical averages from previous years. Pack according to averages and check back closer to your departure!`;
     weatherWarningBanner.style.display = "block";
-  } else if (partialHistoricalCities.length > 0) {
-    const listStr = partialHistoricalCities.join(" & ");
-    weatherWarningBanner.innerHTML = `⚠️ Note: Part of your trip to <strong>${listStr}</strong> is beyond our 14-day forecast window. We merged real-time forecasts with historical averages for the later dates.`;
+  } else if (partialHistoricalCities.length > 0 || realHistoricalCities.length > 0) {
+    const listStr = [...new Set([...realHistoricalCities, ...partialHistoricalCities])].join(" & ");
+    const dayText = firstHistoricalDayNumber 
+      ? `From <strong>Day ${firstHistoricalDayNumber} (${firstHistoricalDateFormatted})</strong> onwards, we are predicting using historical climate averages.`
+      : `We merged real-time forecasts with historical averages for the later dates.`;
+    
+    weatherWarningBanner.innerHTML = `⚠️ Note: Part of your trip to <strong>${listStr}</strong> is beyond our 14-day forecast window. ${dayText}`;
     weatherWarningBanner.style.display = "block";
   } else {
     weatherWarningBanner.style.display = "none";
@@ -1108,12 +1141,7 @@ function renderResults(stops, historicalCities) {
   const maxDateFormatted = formatDateFriendly(absoluteMaxDate);
   const minDateFormatted = formatDateFriendly(absoluteMinDate);
 
-  const allDays = [];
-  stops.forEach(s => {
-    if (s.daysForecast) {
-      allDays.push(...s.daysForecast);
-    }
-  });
+
 
   const WMO_RAIN_CODES = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99, 71, 73, 75, 77, 85, 86];
   const rainyDays = allDays.filter(day => day.precip > 1.0 || WMO_RAIN_CODES.includes(day.wcode));
@@ -1164,7 +1192,7 @@ function renderResults(stops, historicalCities) {
     undBras: document.getElementById("und-bras").checked
   };
 
-  const forecastMaxStr = addDays(todayYmd, 13);
+
 
   allDays.forEach((day, index) => {
     const { emoji, desc: condDesc } = getWeatherEmojiAndDesc(day.wcode);
