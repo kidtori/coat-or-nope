@@ -815,6 +815,7 @@ prepForm.addEventListener("submit", async (event) => {
       let wmoCodes = [];
       let usedArchive = false;
       let usedPartial = false;
+      let isFallbackUsed = false;
       let maxTempDate = stopStartDate;
       let minTempDate = stopStartDate;
       const stopDaysData = [];
@@ -851,6 +852,7 @@ prepForm.addEventListener("submit", async (event) => {
         }
       } else {
         // Heuristic fallback when API unavailable
+        isFallbackUsed = true;
         const n = displayName.toLowerCase();
         if (n.includes("bali") || n.includes("singapore") || n.includes("thailand") || n.includes("indonesia") || n.includes("malaysia") || n.includes("vietnam") || n.includes("cambodia") || n.includes("miami") || n.includes("dubai") || n.includes("cancun")) {
           maxTemp = 32; minTemp = 24; totalRain = 10;
@@ -891,6 +893,7 @@ prepForm.addEventListener("submit", async (event) => {
         weatherClass,
         isHistorical: usedArchive,
         isPartialHistorical: usedPartial,
+        isFallbackUsed: isFallbackUsed,
         daysForecast: stopDaysData
       });
     }
@@ -1089,8 +1092,14 @@ function renderResults(stops, historicalCities) {
     }
   }
 
-  // 1. Show Historical average weather warning banner if any stop is archive-based
-  if (realHistoricalCities.length > 0 && partialHistoricalCities.length === 0) {
+  const fallbackCities = [...new Set(stops.filter(s => s.isFallbackUsed).map(s => s.shortName))];
+
+  // 1. Show Historical average weather warning banner if any stop is archive-based or failed
+  if (fallbackCities.length > 0) {
+    const listStr = fallbackCities.join(" & ");
+    weatherWarningBanner.innerHTML = `⚠️ Warning: We couldn't reach the live weather service for <strong>${listStr}</strong>. Showing fallback regional climate averages.`;
+    weatherWarningBanner.style.display = "block";
+  } else if (realHistoricalCities.length > 0 && partialHistoricalCities.length === 0) {
     const listStr = realHistoricalCities.join(" & ");
     weatherWarningBanner.innerHTML = `⚠️ Note: Your trip to <strong>${listStr}</strong> is far in the future. We used historical averages from previous years. Pack according to averages and check back closer to your departure!`;
     weatherWarningBanner.style.display = "block";
