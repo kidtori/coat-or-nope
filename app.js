@@ -16,6 +16,54 @@ const locationCache = new Map();
 const tripStops = [];
 let verdictReady = false;
 
+// Temperature Unit state & caching
+let currentUnit = localStorage.getItem("coatOrNope_unit") || "C";
+let lastProcessedStops = null;
+let lastHistoricalCities = null;
+
+function formatTemp(celsiusVal) {
+  if (currentUnit === "F") {
+    const fahr = Math.round(celsiusVal * 9 / 5 + 32);
+    return `${fahr}°F`;
+  }
+  return `${celsiusVal}°C`;
+}
+
+const btnUnitC = document.getElementById("unit-c");
+const btnUnitF = document.getElementById("unit-f");
+
+function updateUnitToggleUI() {
+  if (btnUnitC && btnUnitF) {
+    btnUnitC.classList.toggle("is-active", currentUnit === "C");
+    btnUnitF.classList.toggle("is-active", currentUnit === "F");
+  }
+}
+
+if (btnUnitC && btnUnitF) {
+  btnUnitC.addEventListener("click", () => {
+    if (currentUnit === "C") return;
+    currentUnit = "C";
+    localStorage.setItem("coatOrNope_unit", "C");
+    updateUnitToggleUI();
+    if (lastProcessedStops) {
+      renderResults(lastProcessedStops, lastHistoricalCities);
+    }
+  });
+
+  btnUnitF.addEventListener("click", () => {
+    if (currentUnit === "F") return;
+    currentUnit = "F";
+    localStorage.setItem("coatOrNope_unit", "F");
+    updateUnitToggleUI();
+    if (lastProcessedStops) {
+      renderResults(lastProcessedStops, lastHistoricalCities);
+    }
+  });
+}
+
+// Initial UI setup
+updateUnitToggleUI();
+
 // Packing Database
 const PACKING_ITEMS_DATABASE = {
   essentials: [],
@@ -868,7 +916,7 @@ prepForm.addEventListener("submit", async (event) => {
   }
 });
 
-function shouldIncludeWeatherItem(itemName, selections) {
+function shouldIncludeWeatherItem(itemName, selections, stops = []) {
   const name = itemName.toLowerCase();
   if (name.includes("hoodie")) return selections.topHoodie;
   if (name.includes("jeans")) return selections.botJeans;
@@ -877,70 +925,132 @@ function shouldIncludeWeatherItem(itemName, selections) {
   if (name.includes("cardigan") || name.includes("sweater")) return selections.topSweater;
   if (name.includes("chinos")) return selections.botChinos;
   if (name.includes("t-shirt")) return selections.topTshirt;
+
+  // Rain gear weighting system
+  const allDays = [];
+  stops.forEach(s => {
+    if (s.daysForecast) {
+      allDays.push(...s.daysForecast);
+    }
+  });
+  const WMO_RAIN_CODES = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99, 71, 73, 75, 77, 85, 86];
+  const rainyDays = allDays.filter(day => day.precip > 1.0 || WMO_RAIN_CODES.includes(day.wcode));
+  const rainyDaysCount = rainyDays.length;
+  const totalDaysCount = allDays.length || 1;
+
+  if (name.includes("waterproof boots")) {
+    if (rainyDaysCount === 0) return false;
+    
+    // 1. Hiking activity checked and there's a rainy stop
+    const isHiking = document.getElementById("act-hiking") && document.getElementById("act-hiking").checked;
+    if (isHiking) return true;
+
+    // 2. Trip is cold/freezing AND rainy
+    const hasColdRain = stops.some(s => {
+      const sRainy = s.daysForecast && s.daysForecast.some(day => day.precip > 1.0 || WMO_RAIN_CODES.includes(day.wcode));
+      return s.minTemp < 10 && sRainy;
+    });
+    if (hasColdRain) return true;
+
+    // 3. Proportion of rainy days is high (at least 3 days OR >= 30% of total days)
+    if (rainyDaysCount >= 3 || (rainyDaysCount / totalDaysCount) >= 0.3) {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (name.includes("raincoat")) {
+    return rainyDaysCount > 0;
+  }
+
+  if (name.includes("extra socks")) {
+    return rainyDaysCount >= 2;
+  }
+
   return true;
 }
 
 function getSuggestedOutfitForDay(dayClass, selections) {
   const { topTshirt, topShirt, topSweater, topHoodie, botJeans, botChinos, botShorts, botSkirt, oneDress, oneJumpsuit, oneSuit } = selections;
 
+  // 1. Check one-piece options
   if (dayClass === "sunny" || dayClass === "moderate") {
-    if (oneDress) return "👗 Dress";
-    if (oneJumpsuit) return "🥋 Jumpsuit / Romper";
-    if (oneSuit) return "👔 Suit Combo";
+    if (oneDress) return [{ text: "Dress", type: "onepiece", icon: "👗" }];
+    if (oneJumpsuit) return [{ text: "Jumpsuit / Romper", type: "onepiece", icon: "🥋" }];
+    if (oneSuit) return [{ text: "Suit Combo", type: "onepiece", icon: "👔" }];
   } else if (dayClass === "cold" || dayClass === "freezing") {
-    if (oneSuit) return "👔 Suit Combo (layer up)";
+    if (oneSuit) return [{ text: "Suit Combo (Layered)", type: "onepiece", icon: "👔" }];
   }
 
-  let topText = "";
+  // 2. Resolve Top
+  let topItem = null;
   if (topTshirt && topShirt) {
-    topText = dayClass === "sunny" ? "T-Shirt" : "Button-down";
+    topItem = { text: dayClass === "sunny" ? "T-Shirt" : "Button-down", type: "top", icon: "👕" };
   } else if (topTshirt) {
-    topText = "T-Shirt";
+    topItem = { text: "T-Shirt", type: "top", icon: "👕" };
   } else if (topShirt) {
-    topText = "Button-down";
+    topItem = { text: "Button-down", type: "top", icon: "👕" };
   } else {
-    if (oneDress) return "👗 Dress";
-    if (oneJumpsuit) return "🥋 Jumpsuit / Romper";
-    if (oneSuit) return "👔 Suit Combo";
-    topText = "T-Shirt";
+    // Fallbacks if no tops checked
+    if (oneDress) return [{ text: "Dress", type: "onepiece", icon: "👗" }];
+    if (oneJumpsuit) return [{ text: "Jumpsuit / Romper", type: "onepiece", icon: "🥋" }];
+    if (oneSuit) return [{ text: "Suit Combo", type: "onepiece", icon: "👔" }];
+    topItem = { text: "T-Shirt", type: "top", icon: "👕" };
   }
 
-  let bottomText = "";
+  // 3. Resolve Bottom
+  let bottomItem = null;
   if (dayClass === "sunny") {
-    if (botShorts) bottomText = "Shorts";
-    else if (botSkirt) bottomText = "Skirt";
-    else if (botJeans) bottomText = "Jeans";
-    else if (botChinos) bottomText = "Chinos";
-    else bottomText = "Pants";
+    if (botShorts) bottomItem = { text: "Shorts", type: "bottom", icon: "🩳" };
+    else if (botSkirt) bottomItem = { text: "Skirt", type: "bottom", icon: "👗" };
+    else if (botJeans) bottomItem = { text: "Jeans", type: "bottom", icon: "👖" };
+    else if (botChinos) bottomItem = { text: "Chinos", type: "bottom", icon: "👖" };
+    else bottomItem = { text: "Pants", type: "bottom", icon: "👖" };
   } else {
-    if (botJeans) bottomText = "Jeans";
-    else if (botChinos) bottomText = "Chinos";
-    else if (botSkirt) bottomText = "Skirt";
-    else if (botShorts) bottomText = "Shorts";
-    else bottomText = "Pants";
+    if (botJeans) bottomItem = { text: "Jeans", type: "bottom", icon: "👖" };
+    else if (botChinos) bottomItem = { text: "Chinos", type: "bottom", icon: "👖" };
+    else if (botSkirt) bottomItem = { text: "Skirt", type: "bottom", icon: "👗" };
+    else if (botShorts) bottomItem = { text: "Shorts", type: "bottom", icon: "🩳" };
+    else bottomItem = { text: "Pants", type: "bottom", icon: "👖" };
   }
 
-  let outerText = "";
+  const layers = [topItem, bottomItem];
+
+  // 4. Resolve Layers
   if (dayClass === "freezing") {
-    outerText = " + Winter Parka";
-    if (topSweater) topText = `Thermal + Sweater`;
-    else if (topHoodie) topText = `Thermal + Hoodie`;
-    else topText = `Thermal + ${topText}`;
+    layers.push({ text: "Winter Parka", type: "outer", icon: "🧥" });
+    if (topSweater) {
+      topItem.text = "Thermal + Sweater";
+    } else if (topHoodie) {
+      topItem.text = "Thermal + Hoodie";
+    } else {
+      topItem.text = "Thermal + " + topItem.text;
+    }
   } else if (dayClass === "cold") {
-    outerText = " + Light Coat";
-    if (topSweater) topText = `Sweater over ${topText}`;
-    else if (topHoodie) topText = `Hoodie over ${topText}`;
+    layers.push({ text: "Light Coat", type: "outer", icon: "🧥" });
+    if (topSweater) {
+      layers.splice(0, 1, { text: "Sweater", type: "outer", icon: "🧶" }, topItem);
+    } else if (topHoodie) {
+      layers.splice(0, 1, { text: "Hoodie", type: "outer", icon: "🧥" }, topItem);
+    }
   } else if (dayClass === "rainy") {
-    outerText = " + Raincoat";
+    layers.push({ text: "Raincoat", type: "outer", icon: "🧥" });
   } else if (dayClass === "moderate") {
-    if (topSweater) outerText = " + Sweater layer";
-    else if (topHoodie) outerText = " + Hoodie layer";
+    if (topSweater) {
+      layers.push({ text: "Sweater", type: "outer", icon: "🧶" });
+    } else if (topHoodie) {
+      layers.push({ text: "Hoodie", type: "outer", icon: "🧥" });
+    }
   }
 
-  return `👕 ${topText} & ${bottomText}${outerText}`;
+  return layers;
 }
 
 function renderResults(stops, historicalCities) {
+  lastProcessedStops = stops;
+  lastHistoricalCities = historicalCities;
+
   // 1. Show Historical average weather warning banner if any stop is archive-based
   if (historicalCities.length > 0) {
     const listStr = [...new Set(historicalCities)].join(" & ");
@@ -1003,15 +1113,15 @@ function renderResults(stops, historicalCities) {
   weatherGrid.innerHTML = `
     <article class="weather-card heat">
       <span>Max Heat</span>
-      <strong>${absoluteMax}<sup>&deg;</sup></strong>
-      <b>C</b>
+      <strong>${formatTemp(absoluteMax).replace(/[^\d.-]/g, '')}<sup>&deg;</sup></strong>
+      <b>${currentUnit}</b>
       <p>Expected on ${maxDateFormatted} in ${hottestStop.shortName}</p>
       <svg aria-hidden="true"><use href="#icon-sun"></use></svg>
     </article>
     <article class="weather-card freeze">
       <span>Deep Freeze</span>
-      <strong>${absoluteMin}<sup>&deg;</sup></strong>
-      <b>C</b>
+      <strong>${formatTemp(absoluteMin).replace(/[^\d.-]/g, '')}<sup>&deg;</sup></strong>
+      <b>${currentUnit}</b>
       <p>Expected on ${minDateFormatted} in ${coldestStop.shortName}</p>
       <svg aria-hidden="true"><use href="#icon-snow"></use></svg>
     </article>
@@ -1050,16 +1160,19 @@ function renderResults(stops, historicalCities) {
     const dateFormatted = formatDateShort(day.date);
     const dayClass = classifyWeather(day.maxTemp, day.minTemp, day.precip, [day.wcode]);
     const suggestedOutfit = getSuggestedOutfitForDay(dayClass, selections);
+    const outfitHtml = suggestedOutfit.map(item => `
+      <span class="outfit-tag tag-${item.type}">${item.icon} ${item.text}</span>
+    `).join(" ");
     
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>Day ${index + 1}</td>
       <td>${dateFormatted}</td>
       <td><strong>${day.city}</strong></td>
-      <td class="temp-col">${day.maxTemp}° / ${day.minTemp}°</td>
+      <td class="temp-col">${formatTemp(day.maxTemp)} / ${formatTemp(day.minTemp)}</td>
       <td class="rain-col">${day.precip > 0 ? `${day.precip.toFixed(1)} mm` : '0 mm'}</td>
       <td>${emoji} ${condDesc}</td>
-      <td>${suggestedOutfit}</td>
+      <td>${outfitHtml}</td>
     `;
     forecastTableBody.appendChild(tr);
   });
@@ -1364,7 +1477,7 @@ function renderResults(stops, historicalCities) {
     const weatherItems = PACKING_ITEMS_DATABASE.weather[wClass] || [];
     weatherItems.forEach((item) => {
       // Respect style checkboxes
-      if (!shouldIncludeWeatherItem(item.name, selections)) return;
+      if (!shouldIncludeWeatherItem(item.name, selections, stops)) return;
       // Deduplicate
       if (packedNames.has(item.name)) return;
       if (packedReusables.has(item.name)) return;
@@ -1410,6 +1523,9 @@ function renderResults(stops, historicalCities) {
   if (extrasChecklist.children.length > 0) {
     packingGrid.appendChild(colExtras);
   }
+
+  // Render Lookbook
+  renderLookbook(stops, selections);
 }
 
 function createChecklistItemElement(item, packedReusables) {
@@ -1460,6 +1576,80 @@ function createCountChecklistItem(name, desc) {
   });
 
   return label;
+}
+
+function renderLookbook(stops, selections) {
+  const lookbookSection = document.getElementById("lookbook-section");
+  const lookbookGrid = document.getElementById("lookbook-grid");
+  if (!lookbookSection || !lookbookGrid) return;
+
+  // Gather all days
+  const allDays = [];
+  stops.forEach(s => {
+    if (s.daysForecast) {
+      allDays.push(...s.daysForecast);
+    }
+  });
+
+  if (allDays.length === 0) {
+    lookbookSection.style.display = "none";
+    return;
+  }
+
+  // Get unique weather classes present on this trip
+  const uniqueClasses = [...new Set(allDays.map(day => classifyWeather(day.maxTemp, day.minTemp, day.precip, [day.wcode])))];
+
+  lookbookGrid.innerHTML = "";
+
+  const descriptions = {
+    freezing: "Designed for sub-zero temperatures. Lock in heat with thermal base layers under a heavy parka or ski jacket.",
+    cold: "Chilly weather layering. Combine a light outer coat with a warm hoodie or sweater underneath to stay comfortable.",
+    rainy: "Rain-ready layer. A waterproof raincoat keeps you dry, paired with appropriate tops and bottoms for the temp.",
+    sunny: "Breathable and warm-weather friendly. Choose light tops, shorts, skirts, or flowy one-pieces.",
+    moderate: "Smart-casual layering. Perfect for mild temperatures—a light sweater or cardigan keeps the draft away."
+  };
+
+  const weatherIcons = {
+    freezing: "❄️",
+    cold: "🧥",
+    rainy: "🌧️",
+    sunny: "☀️",
+    moderate: "🌤️"
+  };
+
+  uniqueClasses.forEach(wClass => {
+    const label = getWeatherClassLabel(wClass);
+    const desc = descriptions[wClass] || "Optimal outfit combination for this weather.";
+    const icon = weatherIcons[wClass] || "👕";
+    const suggestedOutfit = getSuggestedOutfitForDay(wClass, selections);
+
+    const outfitHtml = suggestedOutfit.map(item => `
+      <span class="outfit-tag tag-${item.type}">${item.icon} ${item.text}</span>
+    `).join("");
+
+    // Also check if waterproof boots are recommended for this weather class.
+    let extraTags = "";
+    if (wClass === "rainy" && shouldIncludeWeatherItem("Waterproof Boots", selections, stops)) {
+      extraTags += `<span class="outfit-tag tag-footwear">🥾 Waterproof Boots</span>`;
+    }
+
+    const card = document.createElement("article");
+    card.className = "lookbook-card";
+    card.innerHTML = `
+      <div class="lookbook-card-header">
+        <span class="lookbook-card-title">${icon} Style Guide</span>
+        <h3 class="lookbook-card-weather">${label}</h3>
+      </div>
+      <div class="lookbook-outfit-container">
+        ${outfitHtml}
+        ${extraTags}
+      </div>
+      <p class="lookbook-card-desc">${desc}</p>
+    `;
+    lookbookGrid.appendChild(card);
+  });
+
+  lookbookSection.style.display = "block";
 }
 
 // Navigation links handler
