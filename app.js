@@ -1124,15 +1124,13 @@ function renderResults(stops, historicalCities) {
   weatherGrid.innerHTML = `
     <article class="weather-card heat">
       <span>Max Heat</span>
-      <strong>${formatTemp(absoluteMax).replace(/[^\d.-]/g, '')}<sup>&deg;</sup></strong>
-      <b>${currentUnit}</b>
+      <strong>${formatTemp(absoluteMax)}</strong>
       <p>Expected on ${maxDateFormatted} in ${hottestStop.shortName}</p>
       <svg aria-hidden="true"><use href="#icon-sun"></use></svg>
     </article>
     <article class="weather-card freeze">
       <span>Deep Freeze</span>
-      <strong>${formatTemp(absoluteMin).replace(/[^\d.-]/g, '')}<sup>&deg;</sup></strong>
-      <b>${currentUnit}</b>
+      <strong>${formatTemp(absoluteMin)}</strong>
       <p>Expected on ${minDateFormatted} in ${coldestStop.shortName}</p>
       <svg aria-hidden="true"><use href="#icon-snow"></use></svg>
     </article>
