@@ -241,27 +241,89 @@ function fetchWithTimeout(url, timeoutMs = 8000) {
     .finally(() => clearTimeout(timer));
 }
 
-// Open-Meteo API Fetcher (Celsius by default)
-async function fetchWeather(lat, lon, startStr, endStr) {
-  const isForecast = isDateInForecastRange(startStr);
-  let url;
-  if (isForecast) {
-    url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=auto`;
-  } else {
-    const { archiveStart, archiveEnd } = getArchiveDates(startStr, endStr);
-    url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${archiveStart}&end_date=${archiveEnd}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=auto`;
-  }
-
+async function fetchForecastWeather(lat, lon, startStr, endStr) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=auto`;
   try {
     const response = await fetchWithTimeout(url, 8000);
-    if (!response.ok) throw new Error("Weather details unavailable");
+    if (!response.ok) throw new Error("Forecast API failed");
     const json = await response.json();
+    return json.daily || null;
+  } catch (e) {
+    console.error("Forecast fetch failed:", e);
+    return null;
+  }
+}
+
+async function fetchArchiveWeather(lat, lon, startStr, endStr) {
+  const { archiveStart, archiveEnd } = getArchiveDates(startStr, endStr);
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${archiveStart}&end_date=${archiveEnd}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=auto`;
+  try {
+    const response = await fetchWithTimeout(url, 8000);
+    if (!response.ok) throw new Error("Archive API failed");
+    const json = await response.json();
+    if (json.daily) {
+      // Map historical years back to the requested user dates
+      const times = [];
+      let cur = new Date(startStr);
+      for (let i = 0; i < json.daily.time.length; i++) {
+        times.push(cur.toISOString().split("T")[0]);
+        cur.setDate(cur.getDate() + 1);
+      }
+      json.daily.time = times;
+      return json.daily;
+    }
+    return null;
+  } catch (e) {
+    console.error("Archive fetch failed:", e);
+    return null;
+  }
+}
+
+// Open-Meteo API Fetcher with automatic split-and-merge for forecast boundary crossings
+async function fetchWeather(lat, lon, startStr, endStr) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const forecastMaxStr = addDays(todayStr, 13); // 14 days of forecast including today
+
+  // Case 1: Entirely in the historical archive range
+  if (startStr > forecastMaxStr) {
+    const archiveDaily = await fetchArchiveWeather(lat, lon, startStr, endStr);
+    if (!archiveDaily) return null;
+    return { daily: archiveDaily, isHistorical: true };
+  }
+
+  // Case 2: Entirely in the forecast range
+  if (endStr <= forecastMaxStr) {
+    const forecastDaily = await fetchForecastWeather(lat, lon, startStr, endStr);
+    if (!forecastDaily) return null;
+    return { daily: forecastDaily, isHistorical: false };
+  }
+
+  // Case 3: Overlapping boundary (split & merge)
+  try {
+    const forecastPartPromise = fetchForecastWeather(lat, lon, startStr, forecastMaxStr);
+    const archivePartPromise = fetchArchiveWeather(lat, lon, addDays(forecastMaxStr, 1), endStr);
+
+    const [forecastDaily, archiveDaily] = await Promise.all([forecastPartPromise, archivePartPromise]);
+
+    if (!forecastDaily && !archiveDaily) return null;
+    if (!forecastDaily) return { daily: archiveDaily, isHistorical: true };
+    if (!archiveDaily) return { daily: forecastDaily, isHistorical: false };
+
+    // Merge daily arrays
+    const mergedDaily = {
+      time: [...(forecastDaily.time || []), ...(archiveDaily.time || [])],
+      temperature_2m_max: [...(forecastDaily.temperature_2m_max || []), ...(archiveDaily.temperature_2m_max || [])],
+      temperature_2m_min: [...(forecastDaily.temperature_2m_min || []), ...(archiveDaily.temperature_2m_min || [])],
+      precipitation_sum: [...(forecastDaily.precipitation_sum || []), ...(archiveDaily.precipitation_sum || [])],
+      weathercode: [...(forecastDaily.weathercode || []), ...(archiveDaily.weathercode || [])]
+    };
+
     return {
-      daily: json.daily,
-      isHistorical: !isForecast
+      daily: mergedDaily,
+      isHistorical: true
     };
   } catch (error) {
-    console.error("Open-Meteo fetch failed:", error);
+    console.error("Split-and-merge weather fetch failed:", error);
     return null;
   }
 }
@@ -360,6 +422,32 @@ function getDefaultCoordinates(cityName) {
   if (name.includes("paris")) return { lat: 48.8566, lon: 2.3522, label: "Paris, France" };
   if (name.includes("tokyo")) return { lat: 35.6762, lon: 139.6503, label: "Tokyo, Japan" };
   if (name.includes("new york")) return { lat: 40.7128, lon: -74.0060, label: "New York, USA" };
+  if (name.includes("rome")) return { lat: 41.9028, lon: 12.4964, label: "Rome, Italy" };
+  if (name.includes("milan")) return { lat: 45.4642, lon: 9.1900, label: "Milan, Italy" };
+  if (name.includes("venice")) return { lat: 45.4408, lon: 12.3155, label: "Venice, Italy" };
+  if (name.includes("florence")) return { lat: 43.7696, lon: 11.2558, label: "Florence, Italy" };
+  if (name.includes("madrid")) return { lat: 40.4168, lon: -3.7038, label: "Madrid, Spain" };
+  if (name.includes("lisbon")) return { lat: 38.7223, lon: -9.1393, label: "Lisbon, Portugal" };
+  if (name.includes("amsterdam")) return { lat: 52.3676, lon: 4.9041, label: "Amsterdam, Netherlands" };
+  if (name.includes("berlin")) return { lat: 52.5200, lon: 13.4050, label: "Berlin, Germany" };
+  if (name.includes("munich")) return { lat: 48.1351, lon: 11.5820, label: "Munich, Germany" };
+  if (name.includes("vienna")) return { lat: 48.2082, lon: 16.3738, label: "Vienna, Austria" };
+  if (name.includes("prague")) return { lat: 50.0755, lon: 14.4378, label: "Prague, Czech Republic" };
+  if (name.includes("budapest")) return { lat: 47.4979, lon: 19.0402, label: "Budapest, Hungary" };
+  if (name.includes("athens")) return { lat: 37.9838, lon: 23.7275, label: "Athens, Greece" };
+  if (name.includes("istanbul")) return { lat: 41.0082, lon: 28.9784, label: "Istanbul, Turkey" };
+  if (name.includes("dubai")) return { lat: 25.2048, lon: 55.2708, label: "Dubai, UAE" };
+  if (name.includes("singapore")) return { lat: 1.3521, lon: 103.8198, label: "Singapore" };
+  if (name.includes("bangkok")) return { lat: 13.7563, lon: 100.5018, label: "Bangkok, Thailand" };
+  if (name.includes("seoul")) return { lat: 37.5665, lon: 126.9780, label: "Seoul, South Korea" };
+  if (name.includes("sydney")) return { lat: -33.8688, lon: 151.2093, label: "Sydney, Australia" };
+  if (name.includes("melbourne")) return { lat: -37.8136, lon: 144.9631, label: "Melbourne, Australia" };
+  if (name.includes("los angeles") || name.includes("la ")) return { lat: 34.0522, lon: -118.2437, label: "Los Angeles, USA" };
+  if (name.includes("miami")) return { lat: 25.7617, lon: -80.1918, label: "Miami, USA" };
+  if (name.includes("san francisco") || name.includes("sf ")) return { lat: 37.7749, lon: -122.4194, label: "San Francisco, USA" };
+  if (name.includes("chicago")) return { lat: 41.8781, lon: -87.6298, label: "Chicago, USA" };
+  if (name.includes("toronto")) return { lat: 43.6532, lon: -79.3832, label: "Toronto, Canada" };
+  if (name.includes("vancouver")) return { lat: 49.2827, lon: -123.1207, label: "Vancouver, Canada" };
   return { lat: 41.3851, lon: 2.1734, label: cityName }; // Fallback to Barcelona
 }
 
@@ -385,6 +473,9 @@ function createStopRow(stop = {}) {
   stopsInlineContainer.appendChild(stopItem);
 
   const locInput = stopItem.querySelector(".location-input");
+  if (stop.selectedLocation) {
+    locInput.dataset.location = JSON.stringify(stop.selectedLocation);
+  }
   attachLocationAutocomplete(locInput);
 
   if (index > 0) {
