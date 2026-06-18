@@ -1666,6 +1666,10 @@ footer small {
   padding: 12px 18px;
 }
 
+.forecast-table td:nth-child(6) {
+  white-space: nowrap;
+}
+
 .forecast-table th {
   background: var(--background);
   font-family: "Space Mono", monospace;
